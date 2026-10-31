@@ -1,5 +1,5 @@
 import { useNavigate, useParams } from 'react-router-dom';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import api, { toast } from '../../services/api.js';
 import { useApi } from '../../hooks/useApi.js';
 import PageHeader from '../../components/common/PageHeader.jsx';
@@ -18,18 +18,18 @@ export default function OrderDetailsPage() {
   const [ref, setRef] = useState('');
   const [assignments, setAssignments] = useState({});
 
+  useEffect(() => {
+    if (!data || data.paymentStatus === 'paid' || !data.razorpayPaymentLinkId) return undefined;
+    const timer = setInterval(reload, 10000);
+    return () => clearInterval(timer);
+  }, [data, reload]);
+
   if (loading || !data) return <TableSkeleton />;
 
   const recordPay = async () => {
     await api.post('/payments', { order: id, amount: Number(amount), method, transactionReference: ref });
     toast('success', 'Payment recorded');
     setAmount('');
-    reload();
-  };
-
-  const syncPayment = async () => {
-    await api.post(`/orders/${id}/sync-payment`);
-    toast('success', 'Razorpay payment synchronized');
     reload();
   };
 
@@ -52,10 +52,10 @@ export default function OrderDetailsPage() {
           <div>Outstanding {money(data.outstandingBalance)}</div>
           <div>Capacity {data.systemCapacityKw} kW</div>
           <div>Installation {data.installationStatus}</div>
-          {data.razorpayPaymentLinkUrl && (
-            <button className="btn-secondary mt-2" onClick={syncPayment}>
-              Sync Razorpay payment
-            </button>
+          {data.razorpayPaymentLinkUrl && data.paymentStatus !== 'paid' && (
+            <a className="btn-secondary mt-2 inline-block" href={data.razorpayPaymentLinkUrl} target="_blank" rel="noreferrer">
+              Open payment link
+            </a>
           )}
         </div>
         <div className="card p-5">

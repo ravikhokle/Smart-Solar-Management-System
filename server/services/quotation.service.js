@@ -12,6 +12,7 @@ import { sendEmail } from './email.service.js';
 import { env } from '../config/env.js';
 import { signQuotationResponseToken, verifyQuotationResponseToken } from '../utils/tokens.js';
 import { createPdfBuffer, drawKeyValues, drawTable, money } from './pdf.service.js';
+import { createOrderFromQuotation } from './order.service.js';
 
 const populate = [
   { path: 'customer' },
@@ -202,12 +203,18 @@ export async function respondToQuotation(token, accept, note) {
   if (accept && quotation.enquiry) {
     await Enquiry.findByIdAndUpdate(quotation.enquiry, { status: 'converted' });
   }
-  return getQuotation(quotation._id);
+  const savedQuotation = await getQuotation(quotation._id);
+  const order = accept ? await createOrderFromQuotation(undefined, quotation._id) : null;
+  return { quotation: savedQuotation, order };
 }
 
 export async function decideQuotation(actor, id, { accept, note }) {
   const quotation = await Quotation.findById(id);
   if (!quotation) throw new ApiError(404, 'Quotation not found');
+  if (accept && quotation.approvalStatus === 'accepted') {
+    const order = await createOrderFromQuotation(actor, quotation._id);
+    return { quotation: await getQuotation(id), order };
+  }
   if (!['draft', 'sent'].includes(quotation.approvalStatus)) {
     throw new ApiError(400, 'This quotation can no longer be accepted or rejected');
   }
@@ -227,7 +234,9 @@ export async function decideQuotation(actor, id, { accept, note }) {
     entityType: 'Quotation',
     entityId: quotation._id,
   });
-  return getQuotation(id);
+  const savedQuotation = await getQuotation(id);
+  const order = accept ? await createOrderFromQuotation(actor, quotation._id) : null;
+  return { quotation: savedQuotation, order };
 }
 
 export async function listTemplates() {

@@ -8,6 +8,7 @@ export default function QuotationResponsePage() {
   const [params] = useSearchParams();
   const token = params.get('token') || '';
   const [quotation, setQuotation] = useState(null);
+  const [paymentLink, setPaymentLink] = useState('');
   const [loading, setLoading] = useState(true);
   const [responding, setResponding] = useState(false);
 
@@ -21,8 +22,9 @@ export default function QuotationResponsePage() {
   const respond = async (accept) => {
     setResponding(true);
     try {
-      await api.post('/public/quotations/respond', { token, accept });
+      const response = await api.post('/public/quotations/respond', { token, accept });
       setQuotation((current) => ({ ...current, approvalStatus: accept ? 'accepted' : 'rejected' }));
+      setPaymentLink(response.data?.data?.paymentLink || '');
       toast('success', accept ? 'Quotation accepted' : 'Quotation rejected');
     } finally {
       setResponding(false);
@@ -49,7 +51,14 @@ export default function QuotationResponsePage() {
             <button className="btn-danger flex-1" disabled={responding} onClick={() => respond(false)}>Reject quotation</button>
           </div>
         ) : (
-          <p className="pt-3 font-medium capitalize">Status: {quotation.approvalStatus}</p>
+          <div className="pt-3">
+            <p className="font-medium capitalize">Status: {quotation.approvalStatus}</p>
+            {paymentLink && (
+              <a className="btn-primary mt-3 inline-block" href={paymentLink} target="_blank" rel="noreferrer">
+                Pay now
+              </a>
+            )}
+          </div>
         )}
       </div>
     </AuthLayout>

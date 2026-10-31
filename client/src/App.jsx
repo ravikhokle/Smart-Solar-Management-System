@@ -27,10 +27,8 @@ import WarrantiesPage from './features/warranties/WarrantiesPage.jsx';
 import WarrantyDetailsPage from './features/warranties/WarrantyDetailsPage.jsx';
 import TicketsPage from './features/tickets/TicketsPage.jsx';
 import TicketDetailsPage from './features/tickets/TicketDetailsPage.jsx';
-import FinancePage from './features/finance/FinancePage.jsx';
+import FinanceWorkspace from './features/finance/FinanceWorkspace.jsx';
 import SubsidiesPage from './features/finance/SubsidiesPage.jsx';
-import ReportsPage from './features/finance/ReportsPage.jsx';
-import NotificationsPage from './features/notifications/NotificationsPage.jsx';
 import UsersPage from './features/users/UsersPage.jsx';
 import ProfilePage from './features/users/ProfilePage.jsx';
 import SettingsPage from './features/users/SettingsPage.jsx';
@@ -69,10 +67,9 @@ export default function App() {
           <Route path="warranties/:id" element={<WarrantyDetailsPage />} />
           <Route path="tickets" element={<TicketsPage />} />
           <Route path="tickets/:id" element={<TicketDetailsPage />} />
-          <Route path="finance" element={<FinancePage />} />
+          <Route path="finance" element={<FinanceWorkspace />} />
           <Route path="subsidies" element={<SubsidiesPage />} />
-          <Route path="reports" element={<ReportsPage />} />
-          <Route path="notifications" element={<NotificationsPage />} />
+          <Route path="reports" element={<FinanceWorkspace />} />
           <Route path="users" element={<UsersPage />} />
           <Route path="profile" element={<ProfilePage />} />
           <Route path="settings" element={<SettingsPage />} />

@@ -26,5 +26,9 @@ export const respond = asyncHandler(async (req, res) => {
     Boolean(req.body.accept),
     req.body.note
   );
-  ok(res, { approvalStatus: quotation.approvalStatus }, 'Quotation response recorded');
+  ok(res, {
+    approvalStatus: quotation.quotation.approvalStatus,
+    orderNumber: quotation.order?.orderNumber,
+    paymentLink: quotation.order?.razorpayPaymentLinkUrl,
+  }, 'Quotation response recorded');
 });

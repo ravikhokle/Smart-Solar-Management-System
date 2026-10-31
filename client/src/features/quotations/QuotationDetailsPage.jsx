@@ -22,18 +22,22 @@ export default function QuotationDetailsPage() {
 
   const addRow = () => setItems([...rows, { product: '', name: '', quantity: 1, unitPrice: 0 }]);
   const save = async () => {
-    await api.patch(`/quotations/${id}`, {
-      items: rows.map((r) => ({
-        product: r.product?._id || r.product || undefined,
-        name: r.name,
-        quantity: Number(r.quantity),
-        unitPrice: Number(r.unitPrice),
-      })),
-      discountAmount: Number(discount || data.discountAmount),
-      taxPercent: Number(tax || data.taxPercent),
-    });
-    toast('success', 'Quotation updated');
-    reload();
+    try {
+      await api.patch(`/quotations/${id}`, {
+        items: rows.map((r) => ({
+          product: r.product?._id || r.product || undefined,
+          name: r.name,
+          quantity: Number(r.quantity),
+          unitPrice: Number(r.unitPrice),
+        })),
+        discountAmount: Number(discount || data.discountAmount),
+        taxPercent: Number(tax || data.taxPercent),
+      });
+      toast('success', 'Quotation updated');
+      reload();
+    } catch {
+      // The API interceptor displays the reason.
+    }
   };
 
   return (
@@ -87,8 +91,24 @@ export default function QuotationDetailsPage() {
           <div className="mt-4 flex flex-wrap gap-2">
             <button className="btn-secondary" onClick={save}>Save BOM</button>
             <button className="btn-secondary" onClick={async () => { await api.post(`/quotations/${id}/send`); toast('success', 'Quotation sent'); reload(); }}>Send</button>
-            <button className="btn-primary" onClick={async () => { await api.post(`/quotations/${id}/decision`, { accept: true }); toast('success', 'Quotation accepted'); reload(); }}>Accept</button>
-            <button className="btn-danger" onClick={async () => { await api.post(`/quotations/${id}/decision`, { accept: false }); toast('success', 'Quotation rejected'); reload(); }}>Reject</button>
+            <button className="btn-primary" onClick={async () => {
+              try {
+                const response = await api.post(`/quotations/${id}/decision`, { accept: true });
+                toast('success', response.data?.data?.order ? 'Quotation accepted and order created' : 'Quotation accepted');
+                reload();
+              } catch {
+                // The API interceptor displays the reason.
+              }
+            }}>Accept</button>
+            <button className="btn-danger" onClick={async () => {
+              try {
+                await api.post(`/quotations/${id}/decision`, { accept: false });
+                toast('success', 'Quotation rejected');
+                reload();
+              } catch {
+                // The API interceptor displays the reason.
+              }
+            }}>Reject</button>
           </div>
         )}
         {data.approvalStatus === 'accepted' && (

@@ -1,5 +1,8 @@
 import { Warranty } from '../models/Warranty.js';
 import { Customer } from '../models/Customer.js';
+import { Order } from '../models/Order.js';
+import { Product } from '../models/Product.js';
+import { SerialNumber } from '../models/SerialNumber.js';
 import { ApiError } from '../utils/apiError.js';
 import { paginate, escapeRegex } from '../utils/query.js';
 import { nextNumber } from '../utils/sequence.js';
@@ -14,6 +17,7 @@ const populate = [
 ];
 
 export async function listWarranties({ status, q, page, limit }) {
+  await syncCompletedOrderWarranties();
   const { skip, limit: l, page: p } = paginate({ page, limit });
   const filter = {};
   if (status) filter.status = status;
@@ -26,12 +30,20 @@ export async function listWarranties({ status, q, page, limit }) {
       { customer: { $in: customers.map((c) => c._id) } },
     ];
   }
+
   await expireOverdue();
   const [items, total] = await Promise.all([
     Warranty.find(filter).populate(populate).sort({ createdAt: -1 }).skip(skip).limit(l),
     Warranty.countDocuments(filter),
   ]);
   return { items, meta: { page: p, limit: l, total } };
+}
+
+async function syncCompletedOrderWarranties() {
+  const completedOrders = await Order.find({ installationStatus: 'completed' }).select('_id');
+  for (const order of completedOrders) {
+    await activateWarrantiesForOrder(order._id);
+  }
 }
 
 export async function getWarranty(id) {
@@ -49,7 +61,8 @@ export async function expireOverdue() {
 }
 
 export async function activateWarrantiesForOrder(orderId, actor) {
-  const pending = await Warranty.find({ order: orderId, status: 'pending', activationMilestone: 'installation' });
+  await createMissingWarrantiesForOrder(orderId, actor);
+  const pending = await Warranty.find({ order: orderId, status: 'pending' });
   for (const w of pending) {
     w.startDate = new Date();
     w.expiryDate = new Date(w.startDate.getTime() + w.durationMonths * 30 * 86400000);
@@ -80,6 +93,58 @@ export async function activateWarrantiesForOrder(orderId, actor) {
         title: 'Your warranty certificate',
         body: 'Your solar equipment warranty has been activated. The warranty certificate is attached as a PDF.',
         attachments: [{ filename: `${active.certificateNumber}.pdf`, content: pdf, contentType: 'application/pdf' }],
+      });
+    }
+  }
+}
+
+async function createMissingWarrantiesForOrder(orderId, actor) {
+  const order = await Order.findById(orderId).populate('quotation');
+  if (!order?.quotation?.items?.length) return;
+
+  for (const item of order.quotation.items) {
+    if (!item.product || item.quantity <= 0) continue;
+    const product = await Product.findById(item.product);
+    if (!product) continue;
+
+    if (product.requiresSerialNumber) {
+      const serials = await SerialNumber.find({
+        order: order._id,
+        product: product._id,
+        status: { $in: ['dispatched', 'installed'] },
+      });
+      for (const serial of serials) {
+        const exists = await Warranty.exists({ order: order._id, serialNumber: serial._id });
+        if (exists) continue;
+        await Warranty.create({
+          customer: order.customer,
+          order: order._id,
+          product: product._id,
+          serialNumber: serial._id,
+          serial: serial.serial,
+          durationMonths: product.warrantyDurationMonths,
+          activationMilestone: product.warrantyActivationMilestone,
+          status: 'pending',
+          history: [{ status: 'pending', note: 'Created on installation completion', by: actor?._id }],
+        });
+      }
+      continue;
+    }
+
+    const exists = await Warranty.exists({
+      order: order._id,
+      product: product._id,
+      serialNumber: { $exists: false },
+    });
+    if (!exists) {
+      await Warranty.create({
+        customer: order.customer,
+        order: order._id,
+        product: product._id,
+        durationMonths: product.warrantyDurationMonths,
+        activationMilestone: product.warrantyActivationMilestone,
+        status: 'pending',
+        history: [{ status: 'pending', note: 'Created on installation completion', by: actor?._id }],
       });
     }
   }

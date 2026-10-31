@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Html5Qrcode } from 'html5-qrcode';
 import api, { toast } from '../../services/api.js';
@@ -14,6 +14,8 @@ export default function SerialsPage() {
   const [page, setPage] = useState(1);
   const [lookup, setLookup] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [scanning, setScanning] = useState(false);
+  const scannerRef = useRef(null);
   const { data, meta, loading, reload } = useApi(() => api.get('/inventory/serials', { params: { q, page } }), [q, page]);
   const deleteSerial = async () => {
     try {
@@ -27,18 +29,74 @@ export default function SerialsPage() {
   };
 
   const find = async (serial) => {
-    const res = await api.get(`/inventory/serials/lookup/${encodeURIComponent(serial)}`);
+    const value = String(serial || '').trim();
+    if (!value) throw new Error('The QR code is empty');
+    const res = await api.get(`/inventory/serials/lookup/${encodeURIComponent(value)}`);
     setLookup(res.data.data);
+    setQ(value);
     toast('success', 'Serial verified');
   };
 
+  const stopScan = async () => {
+    if (!scannerRef.current) return;
+    try {
+      await scannerRef.current.stop();
+    } catch {
+      // The scanner may already be stopped after a successful decode.
+    } finally {
+      scannerRef.current.clear();
+    }
+    scannerRef.current = null;
+    setScanning(false);
+  };
+
   const scan = async () => {
+    if (scanning) return;
     const scanner = new Html5Qrcode('qr-reader');
-    await scanner.start({ facingMode: 'environment' }, { fps: 8, qrbox: 220 }, async (text) => {
-      await scanner.stop();
-      setQ(text);
-      find(text);
-    });
+    scannerRef.current = scanner;
+    setScanning(true);
+    try {
+      const cameras = await Html5Qrcode.getCameras();
+      const camera = cameras.find((item) => /back|rear|environment/i.test(item.label)) || cameras[0];
+      if (!camera) throw new Error('No camera was found');
+      await scanner.start(
+        camera.id,
+        {
+          fps: 15,
+          qrbox: { width: 280, height: 280 },
+          aspectRatio: 1,
+          disableFlip: true,
+        },
+        async (text) => {
+          await stopScan();
+          try {
+            await find(text);
+          } catch {
+            toast('error', `Serial "${text}" was not found`);
+          }
+        },
+        () => {}
+      );
+    } catch (error) {
+      scannerRef.current = null;
+      setScanning(false);
+      toast('error', error.message || 'Unable to start the camera');
+    }
+  };
+
+  const scanImage = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    const scanner = new Html5Qrcode('qr-file-reader');
+    try {
+      const text = await scanner.scanFile(file, true);
+      await find(text);
+    } catch (error) {
+      toast('error', error.message || 'Could not read the QR image');
+    } finally {
+      scanner.clear();
+    }
   };
 
   return (
@@ -47,9 +105,18 @@ export default function SerialsPage() {
       <div className="mb-4 flex flex-wrap gap-2">
         <input className="input max-w-xs" placeholder="Search serial" value={q} onChange={(e) => setQ(e.target.value)} />
         <button className="btn-secondary" onClick={() => q && find(q)}>Verify</button>
-        <button className="btn-secondary" onClick={scan}>Scan camera</button>
+        <button className="btn-secondary" onClick={scanning ? stopScan : scan}>
+          {scanning ? 'Stop camera' : 'Scan camera'}
+        </button>
+        <label className="btn-secondary cursor-pointer">
+          Upload QR image
+          <input className="hidden" type="file" accept="image/*" onChange={scanImage} />
+        </label>
       </div>
-      <div id="qr-reader" className="mb-4 max-w-sm" />
+      <div className="mb-4 max-w-sm">
+        <div id="qr-reader" />
+        <div id="qr-file-reader" className="hidden" />
+      </div>
       {lookup && (
         <div className="card mb-4 p-4 text-sm">
           <div>Serial {lookup.serial.serial} · {lookup.serial.status}</div>
@@ -72,7 +139,7 @@ export default function SerialsPage() {
           { key: 'serial', header: 'Serial' },
           { key: 'product', header: 'Product', render: (r) => r.product?.name },
           { key: 'status', header: 'Status', render: (r) => <Badge tone={statusTone(r.status)}>{r.status}</Badge> },
-          { key: 'qr', header: 'QR', render: (r) => r.qrImageDataUrl ? <img src={r.qrImageDataUrl} alt="" className="h-10 w-10" /> : '—' },
+          { key: 'qr', header: 'QR', render: (r) => r.qrImageDataUrl ? <img src={r.qrImageDataUrl} alt={`QR for ${r.serial}`} className="h-20 w-20" /> : '—' },
           {
             key: 'actions',
             header: 'Actions',

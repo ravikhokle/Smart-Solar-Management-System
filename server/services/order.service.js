@@ -88,11 +88,11 @@ export async function syncRazorpayPayment(actor, id) {
 export async function createOrderFromQuotation(actor, quotationId) {
   const quotation = await Quotation.findById(quotationId).populate('customer');
   if (!quotation) throw new ApiError(404, 'Quotation not found');
+  const existing = await Order.findOne({ quotation: quotation._id });
+  if (existing) return getOrder(existing._id);
   if (quotation.approvalStatus !== 'accepted') {
     throw new ApiError(400, 'Only accepted quotations can be converted into orders');
   }
-  const existing = await Order.findOne({ quotation: quotation._id });
-  if (existing) throw new ApiError(409, 'An order already exists for this quotation');
   const costSnapshot = quotation.items.reduce(
     (sum, i) => sum + Number(i.quantity) * Number(i.unitCostSnapshot || 0),
     0
@@ -108,7 +108,7 @@ export async function createOrderFromQuotation(actor, quotationId) {
     systemType: quotation.systemType,
     orderAmount: quotation.totalAmount,
     costSnapshot,
-    createdBy: actor._id,
+    createdBy: actor?._id,
   });
   let paymentLink;
   try {
@@ -121,14 +121,14 @@ export async function createOrderFromQuotation(actor, quotationId) {
   order.razorpayPaymentLinkUrl = paymentLink.url;
   await order.save();
   quotation.approvalStatus = 'converted';
-  quotation.history.push({ status: 'converted', note: 'Converted to order', by: actor._id });
+  quotation.history.push({ status: 'converted', note: 'Converted to order', by: actor?._id });
   await quotation.save();
   await notifyRole('warehouse_manager', {
     title: 'New order requires inventory',
     body: `Order ${order.orderNumber} is ready for stock reservation.`,
     link: `/orders/${order._id}`,
   });
-  await writeAudit({ actor: actor._id, action: 'order.create', entityType: 'Order', entityId: order._id });
+  await writeAudit({ actor: actor?._id, action: 'order.create', entityType: 'Order', entityId: order._id });
   if (quotation.customer?.email) {
     await notifyUsers({
       userIds: [],
