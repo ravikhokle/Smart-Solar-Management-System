@@ -28,6 +28,11 @@ export const update = asyncHandler(async (req, res) => {
   ok(res, customer, 'Customer updated');
 });
 
+export const remove = asyncHandler(async (req, res) => {
+  await svc.deleteCustomer(req.user, req.params.id);
+  res.status(204).send();
+});
+
 export const duplicates = asyncHandler(async (req, res) => {
   const items = await svc.findDuplicates(req.query);
   ok(res, items);

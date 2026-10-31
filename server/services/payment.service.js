@@ -69,3 +69,12 @@ export async function getPayment(id) {
   const order = await getOrder(payment.order._id || payment.order);
   return { payment, order };
 }
+
+export async function deletePayment(actor, id) {
+  const payment = await Payment.findById(id);
+  if (!payment) throw new ApiError(404, 'Payment not found');
+  const orderId = payment.order;
+  await Payment.findByIdAndDelete(id);
+  await refreshPaymentStatus(orderId);
+  await writeAudit({ actor: actor._id, action: 'payment.delete', entityType: 'Payment', entityId: id });
+}

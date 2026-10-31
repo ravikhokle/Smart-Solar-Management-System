@@ -96,3 +96,13 @@ export async function decideSurvey(actor, id, { approve, reason }) {
   });
   return getSurvey(id);
 }
+
+export async function deleteSurvey(actor, id) {
+  const survey = await SiteSurvey.findById(id);
+  if (!survey) throw new ApiError(404, 'Site survey not found');
+  const { Quotation } = await import('../models/Quotation.js');
+  const quoted = await Quotation.countDocuments({ survey: id });
+  if (quoted) throw new ApiError(400, 'Cannot delete a survey that already has quotations');
+  await SiteSurvey.findByIdAndDelete(id);
+  await writeAudit({ actor: actor._id, action: 'survey.delete', entityType: 'SiteSurvey', entityId: id });
+}

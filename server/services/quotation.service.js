@@ -177,3 +177,13 @@ export async function listTemplates() {
 export async function saveTemplate(actor, payload) {
   return SystemTemplate.create({ ...payload, createdBy: actor._id });
 }
+
+export async function deleteQuotation(actor, id) {
+  const quotation = await Quotation.findById(id);
+  if (!quotation) throw new ApiError(404, 'Quotation not found');
+  if (quotation.approvalStatus === 'converted') {
+    throw new ApiError(400, 'Cannot delete a quotation that has been converted to an order');
+  }
+  await Quotation.findByIdAndDelete(id);
+  await writeAudit({ actor: actor._id, action: 'quotation.delete', entityType: 'Quotation', entityId: id });
+}

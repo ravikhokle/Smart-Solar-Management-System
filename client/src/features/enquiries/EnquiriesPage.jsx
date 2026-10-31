@@ -21,14 +21,33 @@ export default function EnquiriesPage() {
   );
   const customers = useApi(() => api.get('/customers', { params: { limit: 100 } }), []);
   const users = useApi(() => api.get('/users/assignable').catch(() => ({ data: { data: [] } })), []);
-  const { register, handleSubmit, reset } = useForm();
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { isSubmitting, errors },
+  } = useForm({
+    defaultValues: {
+      customer: '',
+      systemType: 'on_grid',
+      expectedCapacityKw: '3',
+      electricityConsumption: '',
+      source: 'walk_in',
+      assignedTo: '',
+      notes: '',
+    },
+  });
 
   const onSubmit = async (values) => {
-    await api.post('/enquiries', { ...values, expectedCapacityKw: Number(values.expectedCapacityKw) });
-    toast('success', 'Enquiry created');
-    setOpen(false);
-    reset();
-    reload();
+    try {
+      await api.post('/enquiries', { ...values, expectedCapacityKw: Number(values.expectedCapacityKw) });
+      toast('success', 'Enquiry created successfully');
+      setOpen(false);
+      reset();
+      reload();
+    } catch (err) {
+      // api interceptor displays toast
+    }
   };
 
   return (
@@ -38,11 +57,26 @@ export default function EnquiriesPage() {
         actions={<button className="btn-primary" onClick={() => setOpen(true)}>New enquiry</button>}
       />
       <div className="mb-4 flex gap-2">
-        <input className="input max-w-xs" placeholder="Search customer" value={q} onChange={(e) => setQ(e.target.value)} />
-        <select className="input max-w-xs" value={status} onChange={(e) => setStatus(e.target.value)}>
+        <input
+          className="input max-w-xs"
+          placeholder="Search customer"
+          value={q}
+          onChange={(e) => {
+            setQ(e.target.value);
+            setPage(1);
+          }}
+        />
+        <select
+          className="input max-w-xs"
+          value={status}
+          onChange={(e) => {
+            setStatus(e.target.value);
+            setPage(1);
+          }}
+        >
           <option value="">All statuses</option>
           {['new', 'assigned', 'in_progress', 'survey_requested', 'converted', 'lost', 'closed'].map((s) => (
-            <option key={s}>{s}</option>
+            <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>
           ))}
         </select>
       </div>
@@ -56,53 +90,137 @@ export default function EnquiriesPage() {
         emptyTitle="No enquiries yet."
         emptyAction={<button className="btn-primary" onClick={() => setOpen(true)}>Create an enquiry</button>}
         columns={[
-          { key: 'customer', header: 'Customer', render: (r) => <Link className="text-solar-orange" to={`/enquiries/${r._id}`}>{r.customer?.fullName}</Link> },
-          { key: 'systemType', header: 'System' },
-          { key: 'expectedCapacityKw', header: 'kW' },
-          { key: 'status', header: 'Status', render: (r) => <Badge tone={statusTone(r.status)}>{r.status}</Badge> },
+          {
+            key: 'customer',
+            header: 'Customer',
+            render: (r) => (
+              <Link className="font-semibold text-solar-orange hover:underline" to={`/enquiries/${r._id}`}>
+                {r.customer?.fullName || 'Unknown'}
+              </Link>
+            ),
+          },
+          {
+            key: 'systemType',
+            header: 'System',
+            render: (r) => <span className="capitalize">{r.systemType?.replace(/_/g, ' ')}</span>,
+          },
+          {
+            key: 'expectedCapacityKw',
+            header: 'Capacity',
+            render: (r) => `${r.expectedCapacityKw} kW`,
+          },
+          {
+            key: 'status',
+            header: 'Status',
+            render: (r) => <Badge tone={statusTone(r.status)}>{r.status}</Badge>,
+          },
           { key: 'enquiryDate', header: 'Date', render: (r) => d(r.enquiryDate) },
         ]}
       />
       {open && (
-        <Modal title="New enquiry" onClose={() => setOpen(false)}>
-          <form className="grid gap-3" onSubmit={handleSubmit(onSubmit)}>
-            <Field label="Customer">
-              <select className="input" required {...register('customer')}>
-                <option value="">Select</option>
+        <Modal
+          title="New enquiry"
+          onClose={() => {
+            if (!isSubmitting) {
+              setOpen(false);
+              reset();
+            }
+          }}
+        >
+          <form className="grid gap-3" onSubmit={handleSubmit(onSubmit)} noValidate>
+            <Field label="Customer" error={errors.customer?.message}>
+              <select
+                className={`input ${errors.customer ? 'border-red-500' : ''}`}
+                {...register('customer', { required: 'Please select a customer' })}
+              >
+                <option value="">Select customer</option>
                 {(customers.data || []).map((c) => (
-                  <option key={c._id} value={c._id}>{c.fullName} · {c.phone}</option>
+                  <option key={c._id} value={c._id}>
+                    {c.fullName} · {c.phone}
+                  </option>
                 ))}
               </select>
             </Field>
-            <Field label="System type">
-              <select className="input" {...register('systemType')}>
-                <option value="on_grid">On-Grid</option>
-                <option value="off_grid">Off-Grid</option>
-              </select>
-            </Field>
-            <Field label="Expected capacity kW">
-              <select className="input" {...register('expectedCapacityKw')}>
-                {[1, 2, 3, 4, 5].map((n) => <option key={n}>{n}</option>)}
-              </select>
-            </Field>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <Field label="System type">
+                <select className="input" {...register('systemType')}>
+                  <option value="on_grid">On-Grid</option>
+                  <option value="off_grid">Off-Grid</option>
+                  <option value="hybrid">Hybrid</option>
+                </select>
+              </Field>
+
+              <Field label="Expected capacity (kW)" error={errors.expectedCapacityKw?.message}>
+                <input
+                  type="number"
+                  step="0.5"
+                  min="0.5"
+                  className={`input ${errors.expectedCapacityKw ? 'border-red-500' : ''}`}
+                  placeholder="e.g. 3"
+                  {...register('expectedCapacityKw', {
+                    required: 'Capacity is required',
+                    min: { value: 0.1, message: 'Must be greater than 0' },
+                  })}
+                />
+              </Field>
+            </div>
+
             <Field label="Electricity consumption">
-              <textarea className="input" {...register('electricityConsumption')} />
+              <textarea
+                className="input"
+                rows={2}
+                placeholder="Average monthly bill or units consumed (optional)"
+                {...register('electricityConsumption')}
+              />
             </Field>
-            <Field label="Source">
-              <select className="input" {...register('source')}>
-                {['website', 'referral', 'walk_in', 'phone', 'campaign', 'other'].map((s) => <option key={s}>{s}</option>)}
-              </select>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <Field label="Source">
+                <select className="input" {...register('source')}>
+                  {['walk_in', 'phone', 'website', 'referral', 'campaign', 'other'].map((s) => (
+                    <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>
+                  ))}
+                </select>
+              </Field>
+
+              <Field label="Assign sales executive">
+                <select className="input" {...register('assignedTo')}>
+                  <option value="">Unassigned</option>
+                  {(users.data || [])
+                    .filter((u) => ['admin', 'sales_executive'].includes(u.role))
+                    .map((u) => (
+                      <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
+                    ))}
+                </select>
+              </Field>
+            </div>
+
+            <Field label="Notes">
+              <textarea
+                className="input"
+                rows={2}
+                placeholder="Customer preferences, site notes..."
+                {...register('notes')}
+              />
             </Field>
-            <Field label="Assign sales executive">
-              <select className="input" {...register('assignedTo')}>
-                <option value="">Unassigned</option>
-                {(users.data || []).filter((u) => ['admin', 'sales_executive'].includes(u.role)).map((u) => (
-                  <option key={u.id} value={u.id}>{u.name}</option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Notes"><textarea className="input" {...register('notes')} /></Field>
-            <button className="btn-primary" type="submit">Save enquiry</button>
+
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                type="button"
+                className="btn-secondary"
+                disabled={isSubmitting}
+                onClick={() => {
+                  setOpen(false);
+                  reset();
+                }}
+              >
+                Cancel
+              </button>
+              <button className="btn-primary" type="submit" disabled={isSubmitting}>
+                {isSubmitting ? 'Saving enquiry...' : 'Save enquiry'}
+              </button>
+            </div>
           </form>
         </Modal>
       )}

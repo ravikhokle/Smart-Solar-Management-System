@@ -24,7 +24,7 @@ export default function LoginPage() {
   };
 
   return (
-    <AuthLayout title="Sign in" subtitle="Use the administrator account created with npm run create-admin.">
+    <AuthLayout title="Sign in" subtitle="Enter your work email and password.">
       <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
         <Field label="Email">
           <input className="input" type="email" required {...register('email')} />

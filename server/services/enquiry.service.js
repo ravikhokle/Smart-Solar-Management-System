@@ -38,9 +38,30 @@ export async function listEnquiries({ q, status, from, to, page, limit, assigned
 }
 
 export async function createEnquiry(actor, payload) {
+  if (!payload.customer) {
+    throw new ApiError(400, 'Customer is required');
+  }
   await getCustomer(payload.customer);
+
+  const capacity = Number(payload.expectedCapacityKw);
+  if (!capacity || capacity <= 0 || isNaN(capacity)) {
+    throw new ApiError(400, 'Expected capacity (kW) must be a positive number');
+  }
+
+  // Prevent duplicate active enquiry created within 2 minutes for the same customer
+  const recentDuplicate = await Enquiry.findOne({
+    customer: payload.customer,
+    status: { $in: ['new', 'assigned', 'in_progress', 'survey_requested'] },
+    expectedCapacityKw: capacity,
+    createdAt: { $gte: new Date(Date.now() - 2 * 60 * 1000) },
+  });
+  if (recentDuplicate) {
+    throw new ApiError(409, 'An open enquiry for this customer was recently created. Please check existing enquiries.');
+  }
+
   const enquiry = await Enquiry.create({
     ...payload,
+    expectedCapacityKw: capacity,
     assignedTo: payload.assignedTo || (actor.role === 'sales_executive' ? actor._id : undefined),
     status: payload.assignedTo ? 'assigned' : 'new',
     createdBy: actor._id,
@@ -108,4 +129,17 @@ export async function convertToSurvey(actor, enquiryId, extra = {}) {
     entityId: survey._id,
   });
   return SiteSurvey.findById(survey._id).populate('customer enquiry surveyor');
+}
+
+export async function deleteEnquiry(actor, id) {
+  const enquiry = await Enquiry.findById(id);
+  if (!enquiry) throw new ApiError(404, 'Enquiry not found');
+  if (enquiry.status === 'converted') {
+    throw new ApiError(400, 'Cannot delete a converted enquiry');
+  }
+  const survey = await SiteSurvey.findOne({ enquiry: id, approvalStatus: 'approved' });
+  if (survey) throw new ApiError(400, 'Cannot delete an enquiry that has an approved survey');
+  await SiteSurvey.deleteMany({ enquiry: id });
+  await Enquiry.findByIdAndDelete(id);
+  await writeAudit({ actor: actor._id, action: 'enquiry.delete', entityType: 'Enquiry', entityId: id });
 }

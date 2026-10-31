@@ -359,3 +359,25 @@ export async function lowStock() {
     .map((p) => p.toObject({ virtuals: true }))
     .filter((p) => p.availableQuantity <= p.minStockLevel);
 }
+
+export async function deleteProduct(actor, id) {
+  const product = await Product.findById(id);
+  if (!product) throw new ApiError(404, 'Product not found');
+  if (product.quantityReserved > 0) {
+    throw new ApiError(400, 'Cannot delete a product with reserved stock');
+  }
+  await SerialNumber.deleteMany({ product: id, status: 'in_stock' });
+  await Product.findByIdAndDelete(id);
+  await writeAudit({ actor: actor._id, action: 'product.delete', entityType: 'Product', entityId: id });
+}
+
+export async function deleteSerial(actor, id) {
+  const sn = await SerialNumber.findById(id);
+  if (!sn) throw new ApiError(404, 'Serial number not found');
+  if (sn.status !== 'in_stock') {
+    throw new ApiError(400, 'Only in-stock serial numbers can be deleted');
+  }
+  await SerialNumber.findByIdAndDelete(id);
+  await Product.findByIdAndUpdate(sn.product, { $inc: { quantityOnHand: -1 } });
+  await writeAudit({ actor: actor._id, action: 'serial.delete', entityType: 'SerialNumber', entityId: id });
+}

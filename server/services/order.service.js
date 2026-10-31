@@ -111,6 +111,20 @@ export async function updateOrder(actor, id, payload) {
   return getOrder(id);
 }
 
+export async function deleteOrder(actor, id) {
+  const order = await Order.findById(id);
+  if (!order) throw new ApiError(404, 'Order not found');
+  if (['completed', 'in_progress'].includes(order.installationStatus) || order.inventoryStatus === 'dispatched') {
+    throw new ApiError(400, 'Cannot delete an order that is dispatched or in installation');
+  }
+  const { Payment } = await import('../models/Payment.js');
+  const { Installation } = await import('../models/Installation.js');
+  await Payment.deleteMany({ order: id });
+  await Installation.deleteMany({ order: id });
+  await Order.findByIdAndDelete(id);
+  await writeAudit({ actor: actor._id, action: 'order.delete', entityType: 'Order', entityId: id });
+}
+
 export async function refreshPaymentStatus(orderId) {
   const order = await Order.findById(orderId);
   if (!order) return;

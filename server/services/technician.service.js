@@ -52,3 +52,15 @@ export async function updateTechnician(id, payload) {
   if (!tech) throw new ApiError(404, 'Technician not found');
   return tech;
 }
+
+export async function deleteTechnician(actor, id) {
+  const tech = await Technician.findById(id);
+  if (!tech) throw new ApiError(404, 'Technician not found');
+  const { Installation } = await import('../models/Installation.js');
+  const active = await Installation.countDocuments({
+    technicians: id,
+    status: { $in: ['scheduled', 'assigned', 'in_progress'] },
+  });
+  if (active) throw new ApiError(400, 'Cannot delete a technician assigned to an active installation');
+  await Technician.findByIdAndDelete(id);
+}

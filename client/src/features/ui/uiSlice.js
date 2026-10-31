@@ -5,7 +5,19 @@ const slice = createSlice({
   initialState: { toasts: [], sidebarOpen: false },
   reducers: {
     pushToast(state, action) {
-      state.toasts.push({ id: Date.now() + Math.random(), ...action.payload });
+      const now = Date.now();
+      const last = state.toasts[state.toasts.length - 1];
+      if (last && last.message === action.payload.message && now - (last.timestamp || 0) < 1500) {
+        return;
+      }
+      state.toasts.push({
+        id: now + Math.random(),
+        timestamp: now,
+        ...action.payload,
+      });
+      if (state.toasts.length > 5) {
+        state.toasts.shift();
+      }
     },
     removeToast(state, action) {
       state.toasts = state.toasts.filter((t) => t.id !== action.payload);

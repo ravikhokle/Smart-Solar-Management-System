@@ -9,4 +9,5 @@ router.get('/duplicates', ctrl.duplicates);
 router.post('/', authorize('admin', 'sales_executive'), ctrl.create);
 router.get('/:id', ctrl.get);
 router.patch('/:id', authorize('admin', 'sales_executive'), ctrl.update);
+router.delete('/:id', authorize('admin', 'sales_executive'), ctrl.remove);
 export default router;

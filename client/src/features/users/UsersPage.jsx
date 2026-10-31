@@ -14,11 +14,40 @@ export default function UsersPage() {
   const [open, setOpen] = useState(false);
   const [target, setTarget] = useState(null);
   const { data, meta, loading, reload } = useApi(() => api.get('/users', { params: { page } }), [page]);
-  const { register, handleSubmit, reset } = useForm();
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { isSubmitting, errors },
+  } = useForm({
+    defaultValues: {
+      name: '',
+      email: '',
+      phone: '',
+      password: '',
+      role: 'sales_executive',
+    },
+  });
+
+  const onSubmit = async (values) => {
+    try {
+      await api.post('/users', values);
+      toast('success', 'User account created successfully');
+      setOpen(false);
+      reset();
+      reload();
+    } catch (err) {
+      // api interceptor will display toast
+    }
+  };
 
   return (
     <div>
-      <PageHeader title="User management" subtitle="Registration is not public. Only administrators can create accounts." actions={<button className="btn-primary" onClick={() => setOpen(true)}>Create user</button>} />
+      <PageHeader
+        title="User management"
+        subtitle="Registration is not public. Only administrators can create accounts."
+        actions={<button className="btn-primary" onClick={() => setOpen(true)}>Create user</button>}
+      />
       <DataTable
         loading={loading}
         rows={data || []}
@@ -26,34 +55,95 @@ export default function UsersPage() {
         total={meta?.total}
         limit={meta?.limit}
         onPage={setPage}
-        emptyTitle="No users besides bootstrap may appear yet."
+        emptyTitle="No users yet."
         columns={[
           { key: 'name', header: 'Name' },
           { key: 'email', header: 'Email' },
-          { key: 'role', header: 'Role', render: (r) => <Badge>{r.role}</Badge> },
-          { key: 'isActive', header: 'Status', render: (r) => <Badge tone={statusTone(r.isActive ? 'active' : 'cancelled')}>{r.isActive ? 'active' : 'inactive'}</Badge> },
+          { key: 'role', header: 'Role', render: (r) => <Badge>{r.role?.replace(/_/g, ' ')}</Badge> },
+          {
+            key: 'isActive',
+            header: 'Status',
+            render: (r) => (
+              <Badge tone={statusTone(r.isActive ? 'active' : 'cancelled')}>
+                {r.isActive ? 'active' : 'inactive'}
+              </Badge>
+            ),
+          },
           {
             key: 'actions',
             header: '',
             render: (r) => (
-              <button className="btn-secondary" onClick={() => setTarget(r)}>{r.isActive ? 'Deactivate' : 'Activate'}</button>
+              <button className="btn-secondary text-xs" onClick={() => setTarget(r)}>
+                {r.isActive ? 'Deactivate' : 'Activate'}
+              </button>
             ),
           },
         ]}
       />
       {open && (
-        <Modal title="Create user" onClose={() => setOpen(false)}>
-          <form className="grid gap-3" onSubmit={handleSubmit(async (v) => {
-            await api.post('/users', v);
-            toast('success', 'User created');
-            setOpen(false);
-            reset();
-            reload();
-          })}>
-            <Field label="Name"><input className="input" required {...register('name')} /></Field>
-            <Field label="Email"><input className="input" type="email" required {...register('email')} /></Field>
-            <Field label="Phone"><input className="input" {...register('phone')} /></Field>
-            <Field label="Password"><input className="input" type="password" minLength={8} required {...register('password')} /></Field>
+        <Modal
+          title="Create user"
+          onClose={() => {
+            if (!isSubmitting) {
+              setOpen(false);
+              reset();
+            }
+          }}
+        >
+          <form className="grid gap-3" onSubmit={handleSubmit(onSubmit)} noValidate>
+            <Field label="Full name" error={errors.name?.message}>
+              <input
+                className={`input ${errors.name ? 'border-red-500' : ''}`}
+                placeholder="e.g. Ramesh Patel"
+                {...register('name', {
+                  required: 'Name is required',
+                  minLength: { value: 2, message: 'Name must be at least 2 characters' },
+                })}
+              />
+            </Field>
+
+            <Field label="Email" error={errors.email?.message}>
+              <input
+                type="email"
+                className={`input ${errors.email ? 'border-red-500' : ''}`}
+                placeholder="ramesh@company.com"
+                {...register('email', {
+                  required: 'Email is required',
+                  pattern: {
+                    value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+                    message: 'Enter a valid email address',
+                  },
+                })}
+              />
+            </Field>
+
+            <Field label="Phone number (optional)" error={errors.phone?.message}>
+              <input
+                type="tel"
+                maxLength={10}
+                className={`input ${errors.phone ? 'border-red-500' : ''}`}
+                placeholder="10-digit mobile number"
+                {...register('phone', {
+                  pattern: {
+                    value: /^[6-9]\d{9}$/,
+                    message: 'Enter a valid 10-digit Indian mobile number',
+                  },
+                })}
+              />
+            </Field>
+
+            <Field label="Password" error={errors.password?.message}>
+              <input
+                type="password"
+                className={`input ${errors.password ? 'border-red-500' : ''}`}
+                placeholder="Minimum 8 characters"
+                {...register('password', {
+                  required: 'Password is required',
+                  minLength: { value: 8, message: 'Password must be at least 8 characters' },
+                })}
+              />
+            </Field>
+
             <Field label="Role">
               <select className="input" {...register('role')}>
                 <option value="sales_executive">Sales executive</option>
@@ -62,7 +152,23 @@ export default function UsersPage() {
                 <option value="admin">Admin</option>
               </select>
             </Field>
-            <button className="btn-primary" type="submit">Create</button>
+
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                type="button"
+                className="btn-secondary"
+                disabled={isSubmitting}
+                onClick={() => {
+                  setOpen(false);
+                  reset();
+                }}
+              >
+                Cancel
+              </button>
+              <button className="btn-primary" type="submit" disabled={isSubmitting}>
+                {isSubmitting ? 'Creating account...' : 'Create account'}
+              </button>
+            </div>
           </form>
         </Modal>
       )}
@@ -73,10 +179,14 @@ export default function UsersPage() {
           danger={target.isActive}
           onClose={() => setTarget(null)}
           onConfirm={async () => {
-            await api.patch(`/users/${target.id || target._id}/active`, { isActive: !target.isActive });
-            toast('success', 'Account updated');
-            setTarget(null);
-            reload();
+            try {
+              await api.patch(`/users/${target.id || target._id}/active`, { isActive: !target.isActive });
+              toast('success', 'Account status updated');
+              setTarget(null);
+              reload();
+            } catch (err) {
+              // api interceptor
+            }
           }}
         />
       )}
