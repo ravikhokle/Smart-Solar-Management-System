@@ -10,6 +10,8 @@ import { getSettings } from '../models/Setting.js';
 import { writeAudit } from './audit.service.js';
 import { sendEmail } from './email.service.js';
 import { env } from '../config/env.js';
+import { signQuotationResponseToken, verifyQuotationResponseToken } from '../utils/tokens.js';
+import { createPdfBuffer, drawKeyValues, drawTable, money } from './pdf.service.js';
 
 const populate = [
   { path: 'customer' },
@@ -133,16 +135,74 @@ export async function sendQuotation(actor, id) {
   quotation.history.push({ status: 'sent', note: 'Sent to customer', by: actor._id });
   await quotation.save();
   if (quotation.customer?.email) {
+    const token = signQuotationResponseToken(quotation._id, quotation.customer.email);
+    const pdf = await createPdfBuffer(async (doc, settings) => {
+      doc.moveDown(3);
+      doc.fontSize(18).text(`Quotation ${quotation.quotationNumber}`);
+      doc.moveDown();
+      drawKeyValues(doc, [
+        ['Customer', quotation.customer.fullName],
+        ['Phone', quotation.customer.phone],
+        ['System', `${quotation.systemCapacityKw} kW ${quotation.systemType?.replace('_', '-')}`],
+        ['Valid until', quotation.validUntil ? new Date(quotation.validUntil).toLocaleDateString() : '—'],
+        ['Status', quotation.approvalStatus],
+      ]);
+      doc.moveDown();
+      drawTable(doc, ['Item', 'Qty', 'Unit', 'Amount'], quotation.items.map((i) => [
+        i.name, i.quantity, money(i.unitPrice), money(i.quantity * i.unitPrice),
+      ]));
+      doc.moveDown();
+      drawKeyValues(doc, [
+        ['Subtotal', money(quotation.subtotal)],
+        ['Discount', money(quotation.discountAmount)],
+        ['Tax', money(quotation.taxAmount)],
+        ['Total', money(quotation.totalAmount)],
+      ]);
+      doc.moveDown();
+      doc.fontSize(9).fillColor('#7C817F').text(quotation.termsAndConditions || settings.defaultTerms);
+    });
     await sendEmail({
       to: quotation.customer.email,
       subject: `Quotation ${quotation.quotationNumber}`,
       title: 'Your solar quotation is ready',
       body: `Quotation ${quotation.quotationNumber} totalling ₹${quotation.totalAmount} is ready for review.`,
-      ctaLabel: 'View details',
-      ctaUrl: `${env.clientUrl}/quotations/${quotation._id}`,
+      ctaLabel: 'Review and respond',
+      ctaUrl: `${env.clientUrl}/quotation-response?token=${encodeURIComponent(token)}`,
+      attachments: [{ filename: `${quotation.quotationNumber}.pdf`, content: pdf, contentType: 'application/pdf' }],
     });
   }
   return getQuotation(id);
+}
+
+export async function getQuotationForResponse(token) {
+  let payload;
+  try {
+    payload = verifyQuotationResponseToken(token);
+  } catch {
+    throw new ApiError(400, 'This quotation response link is invalid or expired');
+  }
+  const quotation = await getQuotation(payload.quotationId);
+  if (quotation.customer?.email?.toLowerCase() !== payload.email.toLowerCase()) {
+    throw new ApiError(400, 'This quotation response link is invalid');
+  }
+  return quotation;
+}
+
+export async function respondToQuotation(token, accept, note) {
+  const quotation = await getQuotationForResponse(token);
+  if (!['draft', 'sent'].includes(quotation.approvalStatus)) {
+    throw new ApiError(400, 'This quotation has already been decided');
+  }
+  quotation.approvalStatus = accept ? 'accepted' : 'rejected';
+  quotation.history.push({
+    status: quotation.approvalStatus,
+    note: note || (accept ? 'Accepted by customer from email' : 'Rejected by customer from email'),
+  });
+  await quotation.save();
+  if (accept && quotation.enquiry) {
+    await Enquiry.findByIdAndUpdate(quotation.enquiry, { status: 'converted' });
+  }
+  return getQuotation(quotation._id);
 }
 
 export async function decideQuotation(actor, id, { accept, note }) {

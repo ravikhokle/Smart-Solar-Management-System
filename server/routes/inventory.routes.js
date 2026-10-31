@@ -8,12 +8,14 @@ router.get('/products', authorize('admin', 'warehouse_manager', 'sales_executive
 router.post('/products', authorize('admin', 'warehouse_manager'), ctrl.create);
 router.get('/products/:id', authorize('admin', 'warehouse_manager', 'sales_executive'), ctrl.get);
 router.patch('/products/:id', authorize('admin', 'warehouse_manager'), ctrl.update);
+router.delete('/products/:id', authorize('admin', 'warehouse_manager'), ctrl.remove);
 router.get('/categories', authorize('admin', 'warehouse_manager', 'sales_executive'), ctrl.categories);
 router.post('/categories', authorize('admin', 'warehouse_manager'), ctrl.createCategory);
 router.post('/receive', authorize('admin', 'warehouse_manager'), ctrl.receive);
 router.post('/orders/:orderId/reserve', authorize('admin', 'warehouse_manager'), ctrl.reserve);
 router.post('/orders/:orderId/dispatch', authorize('admin', 'warehouse_manager'), ctrl.dispatch);
 router.get('/serials', authorize('admin', 'warehouse_manager', 'technician'), ctrl.serials);
+router.delete('/serials/:id', authorize('admin', 'warehouse_manager'), ctrl.removeSerial);
 router.get('/serials/lookup/:serial', authorize('admin', 'warehouse_manager', 'technician', 'sales_executive'), ctrl.lookup);
 router.get('/movements', authorize('admin', 'warehouse_manager'), ctrl.movements);
 router.get('/low-stock', authorize('admin', 'warehouse_manager'), ctrl.low);

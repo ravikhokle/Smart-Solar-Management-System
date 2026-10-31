@@ -9,7 +9,7 @@ import { uploadMany } from './upload.service.js';
 import { activateWarrantiesForOrder } from './warranty.service.js';
 import { sendEmail } from './email.service.js';
 import { Customer } from '../models/Customer.js';
-import { env } from '../config/env.js';
+import { createPdfBuffer, drawKeyValues } from './pdf.service.js';
 
 const populate = [
   { path: 'order', select: 'orderNumber orderAmount systemCapacityKw installationStatus' },
@@ -66,8 +66,6 @@ export async function scheduleInstallation(actor, payload) {
       subject: 'Installation scheduled',
       title: 'Your solar installation is scheduled',
       body: `Installation for order ${order.orderNumber} is scheduled on ${new Date(payload.scheduledDate).toLocaleString()}.`,
-      ctaUrl: `${env.clientUrl}/installations/${installation._id}`,
-      ctaLabel: 'View schedule',
     });
   }
   await writeAudit({
@@ -138,5 +136,33 @@ export async function updateInstallation(actor, id, payload, files) {
     });
   }
   await installation.save();
+  if (payload.status === 'completed') {
+    const completed = await getInstallation(id);
+    if (completed.customer?.email) {
+      const pdf = await createPdfBuffer((doc) => {
+        doc.moveDown(3);
+        doc.fontSize(18).text('Installation report');
+        doc.moveDown();
+        drawKeyValues(doc, [
+          ['Order', completed.order?.orderNumber],
+          ['Customer', completed.customer.fullName],
+          ['Status', completed.status],
+          ['Scheduled', completed.scheduledDate ? new Date(completed.scheduledDate).toLocaleString() : '—'],
+          ['Completed', completed.completionTime ? new Date(completed.completionTime).toLocaleString() : '—'],
+          ['Actual capacity (kW)', completed.actualCapacityKw],
+          ['Testing', completed.testingNotes],
+          ['Commissioning', completed.commissioningNotes],
+          ['Customer confirmation', completed.customerConfirmation?.name || 'Confirmed'],
+        ]);
+      });
+      await sendEmail({
+        to: completed.customer.email,
+        subject: `Installation completed for ${completed.order?.orderNumber}`,
+        title: 'Your solar installation is complete',
+        body: `Your installation for order ${completed.order?.orderNumber} is complete. The installation report is attached as a PDF.`,
+        attachments: [{ filename: `installation-${completed._id}.pdf`, content: pdf, contentType: 'application/pdf' }],
+      });
+    }
+  }
   return getInstallation(id);
 }

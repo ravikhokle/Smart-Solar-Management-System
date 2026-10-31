@@ -15,6 +15,11 @@ export const update = asyncHandler(async (req, res) => {
   ok(res, await svc.updateSurvey(req.user, req.params.id, req.body, req.files), 'Survey updated');
 });
 
+export const remove = asyncHandler(async (req, res) => {
+  await svc.deleteSurvey(req.user, req.params.id);
+  res.status(204).send();
+});
+
 export const decide = asyncHandler(async (req, res) => {
   ok(res, await svc.decideSurvey(req.user, req.params.id, req.body), 'Survey decision saved');
 });

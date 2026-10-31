@@ -7,7 +7,7 @@ import { ok, created } from '../utils/response.js';
 import { streamPdf, drawKeyValues, money } from '../services/pdf.service.js';
 
 export const dashboard = asyncHandler(async (req, res) => {
-  ok(res, await svc.dashboard());
+  ok(res, await svc.dashboard(req.user));
 });
 
 export const report = asyncHandler(async (req, res) => {

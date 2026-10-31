@@ -7,6 +7,8 @@ import { paginate } from '../utils/query.js';
 import { writeAudit } from './audit.service.js';
 import { notifyRole, notifyUsers } from './notification.service.js';
 import { env } from '../config/env.js';
+import { createPaymentLink } from './razorpay.service.js';
+import { getPaymentLinkPayments } from './razorpay.service.js';
 
 const populate = [
   { path: 'customer', select: 'fullName phone email address city state pinCode' },
@@ -51,6 +53,38 @@ export async function getOrder(id) {
   return summary;
 }
 
+export async function syncRazorpayPayment(actor, id) {
+  const order = await Order.findById(id);
+  if (!order) throw new ApiError(404, 'Order not found');
+  if (!order.razorpayPaymentLinkId) throw new ApiError(400, 'This order has no Razorpay payment link');
+  const { link, payments } = await getPaymentLinkPayments(order.razorpayPaymentLinkId);
+  const paid = payments.find((payment) => ['captured', 'authorized'].includes(payment.status));
+  if (!paid) {
+    throw new ApiError(400, `Razorpay has not marked this payment link as paid yet (status: ${link.status || 'unknown'})`);
+  }
+  const paymentId = paid.id || paid.payment_id;
+  if (paid && paymentId && !(await Payment.exists({ transactionReference: paymentId }))) {
+    await Payment.create({
+      receiptNumber: await nextNumber('RCPT'),
+      order: order._id,
+      customer: order.customer,
+      amount: Number(paid.amount) / 100,
+      method: 'razorpay',
+      transactionReference: paid.id || paid.payment_id,
+      paymentDate: paid.created_at ? new Date(paid.created_at * 1000) : new Date(),
+      notes: `Razorpay payment link ${order.razorpayPaymentLinkId}`,
+      recordedBy: actor._id,
+    });
+    await refreshPaymentStatus(order._id);
+    const savedPayment = await Payment.findOne({ transactionReference: paymentId });
+    if (savedPayment) {
+      const { emailPaymentReceipt } = await import('./payment.service.js');
+      await emailPaymentReceipt(savedPayment._id);
+    }
+  }
+  return getOrder(order._id);
+}
+
 export async function createOrderFromQuotation(actor, quotationId) {
   const quotation = await Quotation.findById(quotationId).populate('customer');
   if (!quotation) throw new ApiError(404, 'Quotation not found');
@@ -63,6 +97,9 @@ export async function createOrderFromQuotation(actor, quotationId) {
     (sum, i) => sum + Number(i.quantity) * Number(i.unitCostSnapshot || 0),
     0
   );
+  if (!quotation.customer?.email) {
+    throw new ApiError(400, 'Customer email is required to create a Razorpay payment link');
+  }
   const order = await Order.create({
     orderNumber: await nextNumber('ORD'),
     customer: quotation.customer._id,
@@ -73,6 +110,16 @@ export async function createOrderFromQuotation(actor, quotationId) {
     costSnapshot,
     createdBy: actor._id,
   });
+  let paymentLink;
+  try {
+    paymentLink = await createPaymentLink({ order, customer: quotation.customer });
+  } catch (error) {
+    await Order.findByIdAndDelete(order._id);
+    throw error;
+  }
+  order.razorpayPaymentLinkId = paymentLink.id;
+  order.razorpayPaymentLinkUrl = paymentLink.url;
+  await order.save();
   quotation.approvalStatus = 'converted';
   quotation.history.push({ status: 'converted', note: 'Converted to order', by: actor._id });
   await quotation.save();
@@ -93,9 +140,9 @@ export async function createOrderFromQuotation(actor, quotationId) {
       to: quotation.customer.email,
       subject: `Order ${order.orderNumber} confirmed`,
       title: 'Your solar order is confirmed',
-      body: `Order ${order.orderNumber} for ${quotation.systemCapacityKw} kW has been created. Our team will contact you for installation scheduling.`,
-      ctaUrl: `${env.clientUrl}/orders/${order._id}`,
-      ctaLabel: 'View order',
+      body: `Order ${order.orderNumber} for ${quotation.systemCapacityKw} kW has been created. Use the secure Razorpay test payment link to pay ₹${Number(order.orderAmount).toFixed(2)}.`,
+      ctaUrl: paymentLink.url,
+      ctaLabel: 'Pay securely',
     });
   }
   return getOrder(order._id);

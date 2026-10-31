@@ -9,12 +9,15 @@ import Modal from '../../components/common/Modal.jsx';
 import Field from '../../components/common/Field.jsx';
 import Badge, { statusTone } from '../../components/common/Badge.jsx';
 import { money } from '../../utils/format.js';
+import ConfirmDialog from '../../components/common/ConfirmDialog.jsx';
+import RowActions from '../../components/common/RowActions.jsx';
 
 export default function QuotationsPage() {
   const [params] = useSearchParams();
   const navigate = useNavigate();
   const [page, setPage] = useState(1);
   const [open, setOpen] = useState(Boolean(params.get('survey')));
+  const [deleteTarget, setDeleteTarget] = useState(null);
   const { data, meta, loading, reload } = useApi(() => api.get('/quotations', { params: { page } }), [page]);
   const surveys = useApi(() => api.get('/surveys', { params: { status: 'approved', limit: 100 } }), []);
   const templates = useApi(() => api.get('/quotations/templates'), []);
@@ -53,6 +56,17 @@ export default function QuotationsPage() {
     }
   };
 
+  const deleteQuotation = async () => {
+    try {
+      await api.delete(`/quotations/${deleteTarget._id}`);
+      toast('success', 'Quotation deleted successfully');
+      setDeleteTarget(null);
+      reload();
+    } catch (err) {
+      // api interceptor displays the backend error
+    }
+  };
+
   return (
     <div>
       <PageHeader
@@ -86,6 +100,11 @@ export default function QuotationsPage() {
             key: 'approvalStatus',
             header: 'Status',
             render: (r) => <Badge tone={statusTone(r.approvalStatus)}>{r.approvalStatus?.replace(/_/g, ' ')}</Badge>,
+          },
+          {
+            key: 'actions',
+            header: 'Actions',
+            render: (r) => <RowActions editTo={`/quotations/${r._id}`} onDelete={() => setDeleteTarget(r)} />,
           },
         ]}
       />
@@ -169,6 +188,16 @@ export default function QuotationsPage() {
             </div>
           </form>
         </Modal>
+      )}
+      {deleteTarget && (
+        <ConfirmDialog
+          title="Delete quotation?"
+          message={`${deleteTarget.quotationNumber} will be permanently deleted.`}
+          confirmLabel="Delete quotation"
+          danger
+          onClose={() => setDeleteTarget(null)}
+          onConfirm={deleteQuotation}
+        />
       )}
     </div>
   );

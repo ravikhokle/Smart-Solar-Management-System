@@ -9,6 +9,7 @@ import customerRoutes from './routes/customer.routes.js';
 import enquiryRoutes from './routes/enquiry.routes.js';
 import surveyRoutes from './routes/survey.routes.js';
 import quotationRoutes from './routes/quotation.routes.js';
+import quotationPublicRoutes from './routes/quotation-public.routes.js';
 import inventoryRoutes from './routes/inventory.routes.js';
 import orderRoutes from './routes/order.routes.js';
 import paymentRoutes from './routes/payment.routes.js';
@@ -16,6 +17,7 @@ import installationRoutes from './routes/installation.routes.js';
 import warrantyRoutes from './routes/warranty.routes.js';
 import ticketRoutes from './routes/ticket.routes.js';
 import financeRoutes from './routes/finance.routes.js';
+import razorpayRoutes from './routes/razorpay.routes.js';
 import { notFound, errorHandler } from './middleware/error.middleware.js';
 
 const app = express();
@@ -33,6 +35,7 @@ app.use(
     credentials: true,
   })
 );
+app.use('/api/razorpay', razorpayRoutes);
 app.use(express.json({ limit: '12mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan(env.nodeEnv === 'production' ? 'combined' : 'dev'));
@@ -47,6 +50,7 @@ app.use('/api/customers', customerRoutes);
 app.use('/api/enquiries', enquiryRoutes);
 app.use('/api/surveys', surveyRoutes);
 app.use('/api/quotations', quotationRoutes);
+app.use('/api/public/quotations', quotationPublicRoutes);
 app.use('/api/inventory', inventoryRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/payments', paymentRoutes);

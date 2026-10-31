@@ -10,6 +10,7 @@ router.get('/technicians', authorize('admin', 'sales_executive', 'technician'), 
 router.post('/technicians', authorize('admin'), ctrl.createTechnician);
 router.get('/technicians/:id', authorize('admin', 'technician'), ctrl.getTechnician);
 router.patch('/technicians/:id', authorize('admin'), ctrl.updateTechnician);
+router.delete('/technicians/:id', authorize('admin'), ctrl.deleteTechnician);
 
 router.get('/', authorize('admin', 'sales_executive', 'technician'), ctrl.listInstallations);
 router.post('/', authorize('admin', 'sales_executive'), ctrl.schedule);

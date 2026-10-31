@@ -11,10 +11,19 @@ export const get = asyncHandler(async (req, res) => {
   ok(res, await svc.getOrder(req.params.id));
 });
 
+export const syncPayment = asyncHandler(async (req, res) => {
+  ok(res, await svc.syncRazorpayPayment(req.user, req.params.id), 'Payment status synchronized');
+});
+
 export const createFromQuote = asyncHandler(async (req, res) => {
   created(res, await svc.createOrderFromQuotation(req.user, req.body.quotationId), 'Order created');
 });
 
 export const update = asyncHandler(async (req, res) => {
   ok(res, await svc.updateOrder(req.user, req.params.id, req.body), 'Order updated');
+});
+
+export const remove = asyncHandler(async (req, res) => {
+  await svc.deleteOrder(req.user, req.params.id);
+  res.status(204).send();
 });

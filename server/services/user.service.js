@@ -115,3 +115,18 @@ export async function updateUser(actor, id, payload) {
   await writeAudit({ actor: actor._id, action: 'user.update', entityType: 'User', entityId: user._id });
   return user.toSafeJSON();
 }
+
+export async function deleteUser(actor, id) {
+  if (String(actor._id) === String(id)) {
+    throw new ApiError(400, 'You cannot delete your own account');
+  }
+  const user = await User.findById(id);
+  if (!user) throw new ApiError(404, 'User not found');
+  if (user.role === 'admin') {
+    const admins = await User.countDocuments({ role: 'admin', isActive: true });
+    if (admins <= 1) throw new ApiError(400, 'Cannot delete the last administrator');
+  }
+  await Technician.deleteOne({ user: user._id });
+  await User.deleteOne({ _id: user._id });
+  await writeAudit({ actor: actor._id, action: 'user.delete', entityType: 'User', entityId: user._id });
+}

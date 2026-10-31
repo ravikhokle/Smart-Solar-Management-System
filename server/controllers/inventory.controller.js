@@ -19,6 +19,11 @@ export const update = asyncHandler(async (req, res) => {
   ok(res, await svc.updateProduct(req.user, req.params.id, req.body), 'Product updated');
 });
 
+export const remove = asyncHandler(async (req, res) => {
+  await svc.deleteProduct(req.user, req.params.id);
+  res.status(204).send();
+});
+
 export const categories = asyncHandler(async (req, res) => {
   ok(res, await svc.listCategories());
 });
@@ -42,6 +47,11 @@ export const dispatch = asyncHandler(async (req, res) => {
 export const serials = asyncHandler(async (req, res) => {
   const data = await svc.listSerials(req.query);
   ok(res, data.items, 'Serial numbers', data.meta);
+});
+
+export const removeSerial = asyncHandler(async (req, res) => {
+  await svc.deleteSerial(req.user, req.params.id);
+  res.status(204).send();
 });
 
 export const lookup = asyncHandler(async (req, res) => {

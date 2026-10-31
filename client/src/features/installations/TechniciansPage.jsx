@@ -7,10 +7,14 @@ import DataTable from '../../components/common/DataTable.jsx';
 import Modal from '../../components/common/Modal.jsx';
 import Field from '../../components/common/Field.jsx';
 import Badge, { statusTone } from '../../components/common/Badge.jsx';
+import ConfirmDialog from '../../components/common/ConfirmDialog.jsx';
+import RowActions from '../../components/common/RowActions.jsx';
 
 export default function TechniciansPage() {
   const [page, setPage] = useState(1);
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
   const { data, meta, loading, reload } = useApi(() => api.get('/installations/technicians', { params: { page } }), [page]);
   const {
     register,
@@ -29,19 +33,49 @@ export default function TechniciansPage() {
 
   const onSubmit = async (values) => {
     try {
-      await api.post('/installations/technicians', {
+      const payload = {
         ...values,
         skills: String(values.skills || '')
           .split(',')
           .map((s) => s.trim())
           .filter(Boolean),
-      });
-      toast('success', 'Technician registered successfully');
+      };
+      if (editing) {
+        await api.patch(`/installations/technicians/${editing._id}`, payload);
+        toast('success', 'Technician updated successfully');
+      } else {
+        await api.post('/installations/technicians', payload);
+        toast('success', 'Technician registered successfully');
+      }
       setOpen(false);
+      setEditing(null);
       reset();
       reload();
     } catch (err) {
       // api interceptor
+    }
+  };
+
+  const startEdit = (technician) => {
+    setEditing(technician);
+    reset({
+      name: technician.name || '',
+      email: technician.email || '',
+      phone: technician.phone || '',
+      password: '',
+      skills: (technician.skills || []).join(', '),
+    });
+    setOpen(true);
+  };
+
+  const deleteTechnician = async () => {
+    try {
+      await api.delete(`/installations/technicians/${deleteTarget._id}`);
+      toast('success', 'Technician deleted successfully');
+      setDeleteTarget(null);
+      reload();
+    } catch (err) {
+      // api interceptor displays the backend error
     }
   };
 
@@ -50,7 +84,18 @@ export default function TechniciansPage() {
       <PageHeader
         title="Technicians"
         subtitle="Manage field technicians, electricians, and installation crews."
-        actions={<button className="btn-primary" onClick={() => setOpen(true)}>Add technician</button>}
+        actions={
+          <button
+            className="btn-primary"
+            onClick={() => {
+              setEditing(null);
+              reset();
+              setOpen(true);
+            }}
+          >
+            Add technician
+          </button>
+        }
       />
       <DataTable
         loading={loading}
@@ -71,14 +116,22 @@ export default function TechniciansPage() {
             render: (r) => <Badge tone={statusTone(r.availability)}>{r.availability}</Badge>,
           },
           { key: 'skills', header: 'Skills', render: (r) => (r.skills || []).join(', ') || '—' },
+          {
+            key: 'actions',
+            header: 'Actions',
+            render: (r) => (
+              <RowActions onEdit={() => startEdit(r)} onDelete={() => setDeleteTarget(r)} />
+            ),
+          },
         ]}
       />
       {open && (
         <Modal
-          title="New technician"
+          title={editing ? 'Edit technician' : 'New technician'}
           onClose={() => {
             if (!isSubmitting) {
               setOpen(false);
+              setEditing(null);
               reset();
             }
           }}
@@ -123,7 +176,7 @@ export default function TechniciansPage() {
               />
             </Field>
 
-            <Field label="Login password" error={errors.password?.message}>
+            {!editing && <Field label="Login password" error={errors.password?.message}>
               <input
                 type="password"
                 className={`input ${errors.password ? 'border-red-500' : ''}`}
@@ -133,7 +186,7 @@ export default function TechniciansPage() {
                   minLength: { value: 8, message: 'Password must be at least 8 characters' },
                 })}
               />
-            </Field>
+            </Field>}
 
             <Field label="Skills (comma-separated)">
               <input
@@ -150,17 +203,28 @@ export default function TechniciansPage() {
                 disabled={isSubmitting}
                 onClick={() => {
                   setOpen(false);
+                  setEditing(null);
                   reset();
                 }}
               >
                 Cancel
               </button>
               <button className="btn-primary" type="submit" disabled={isSubmitting}>
-                {isSubmitting ? 'Saving technician...' : 'Save technician'}
+                {isSubmitting ? 'Saving technician...' : editing ? 'Save changes' : 'Save technician'}
               </button>
             </div>
           </form>
         </Modal>
+      )}
+      {deleteTarget && (
+        <ConfirmDialog
+          title="Delete technician?"
+          message={`${deleteTarget.name} will be removed. Technicians assigned to active installations cannot be deleted.`}
+          confirmLabel="Delete technician"
+          danger
+          onClose={() => setDeleteTarget(null)}
+          onConfirm={deleteTechnician}
+        />
       )}
     </div>
   );

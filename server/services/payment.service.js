@@ -7,6 +7,7 @@ import { refreshPaymentStatus, getOrder } from './order.service.js';
 import { writeAudit } from './audit.service.js';
 import { sendEmail } from './email.service.js';
 import { env } from '../config/env.js';
+import { createPdfBuffer, drawKeyValues, money } from './pdf.service.js';
 
 export async function listPayments({ order, page, limit }) {
   const { skip, limit: l, page: p } = paginate({ page, limit });
@@ -50,17 +51,34 @@ export async function recordPayment(actor, payload) {
   });
   await refreshPaymentStatus(order._id);
   await writeAudit({ actor: actor._id, action: 'payment.record', entityType: 'Payment', entityId: payment._id });
-  if (order.customer?.email) {
-    await sendEmail({
-      to: order.customer.email,
-      subject: `Payment receipt ${payment.receiptNumber}`,
-      title: 'Payment received',
-      body: `We received ₹${Number(payment.amount).toFixed(2)} towards order ${order.orderNumber}. Receipt ${payment.receiptNumber}.`,
-      ctaUrl: `${env.clientUrl}/payments`,
-      ctaLabel: 'View payments',
-    });
-  }
+  await emailPaymentReceipt(payment._id);
   return Payment.findById(payment._id).populate('customer order recordedBy');
+}
+
+export async function emailPaymentReceipt(paymentId) {
+  const { payment, order } = await getPayment(paymentId);
+  if (!payment.customer?.email) return;
+  const pdf = await createPdfBuffer((doc) => {
+    doc.moveDown(3);
+    doc.fontSize(18).text(`Receipt ${payment.receiptNumber}`);
+    doc.moveDown();
+    drawKeyValues(doc, [
+      ['Order', order.orderNumber],
+      ['Customer', payment.customer.fullName],
+      ['Amount', money(payment.amount)],
+      ['Method', payment.method],
+      ['Reference', payment.transactionReference],
+      ['Date', new Date(payment.paymentDate).toLocaleString()],
+      ['Outstanding after this receipt', money(order.outstandingBalance)],
+    ]);
+  });
+  await sendEmail({
+    to: payment.customer.email,
+    subject: `Payment receipt ${payment.receiptNumber}`,
+    title: 'Payment received',
+    body: `We received ₹${Number(payment.amount).toFixed(2)} towards order ${order.orderNumber}. Your receipt is attached as a PDF.`,
+    attachments: [{ filename: `${payment.receiptNumber}.pdf`, content: pdf, contentType: 'application/pdf' }],
+  });
 }
 
 export async function getPayment(id) {

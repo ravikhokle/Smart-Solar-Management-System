@@ -6,6 +6,7 @@ import PageHeader from '../../components/common/PageHeader.jsx';
 import { money, dt } from '../../utils/format.js';
 import Skeleton from '../../components/common/Skeleton.jsx';
 import EmptyState from '../../components/common/EmptyState.jsx';
+import { useSelector } from 'react-redux';
 
 const KPI = [
   ['Total customers', 'totalCustomers', '/customers'],
@@ -24,6 +25,7 @@ const KPI = [
 ];
 
 export default function DashboardPage() {
+  const user = useSelector((s) => s.auth.user);
   const { data, loading } = useApi(() => api.get('/finance/dashboard'), []);
   if (loading || !data) {
     return (
@@ -35,6 +37,15 @@ export default function DashboardPage() {
     );
   }
   const k = data.kpis;
+  const isTechnician = user?.role === 'technician';
+  const visibleKpis = isTechnician
+    ? [
+        ['Assigned installations', 'assignedInstallations', '/installations'],
+        ['Pending installations', 'pendingInstallations', '/installations'],
+        ['Completed installations', 'completedInstallations', '/installations'],
+        ['Open service tickets', 'openServiceTickets', '/tickets'],
+      ]
+    : KPI;
   const revenue = (data.charts?.monthlyRevenue || []).map((r) => ({
     name: `${r._id.m}/${r._id.y}`,
     revenue: r.total,
@@ -54,14 +65,14 @@ export default function DashboardPage() {
     <div>
       <PageHeader title="Dashboard" subtitle="Live figures from MongoDB. Empty modules stay empty until you add records." />
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {KPI.map(([label, key, to, isMoney]) => (
+        {visibleKpis.map(([label, key, to, isMoney]) => (
           <Link key={key} to={to} className="card p-4">
             <div className="text-xs uppercase tracking-wide text-solar-muted">{label}</div>
             <div className="mt-2 text-2xl font-semibold">{isMoney ? money(k[key]) : k[key] || 0}</div>
           </Link>
         ))}
       </div>
-      <div className="mt-6 grid gap-4 lg:grid-cols-2">
+      {!isTechnician && <div className="mt-6 grid gap-4 lg:grid-cols-2">
         <div className="card p-4">
           <h3 className="mb-3 font-semibold">Revenue and expenses</h3>
           {chartRows.length ? (
@@ -95,7 +106,7 @@ export default function DashboardPage() {
             <EmptyState title="No installation records yet." />
           )}
         </div>
-      </div>
+      </div>}
       <div className="mt-6 grid gap-4 lg:grid-cols-2">
         <ListCard title="Recent enquiries" rows={data.recentEnquiries} empty="No enquiries yet." to={(r) => `/enquiries/${r._id}`} text={(r) => r.customer?.fullName || 'Enquiry'} sub={(r) => dt(r.createdAt)} />
         <ListCard title="Upcoming installations" rows={data.upcomingInstallations} empty="No upcoming installations." to={(r) => `/installations/${r._id}`} text={(r) => r.customer?.fullName} sub={(r) => dt(r.scheduledDate)} />

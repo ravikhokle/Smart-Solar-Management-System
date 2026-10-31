@@ -35,6 +35,7 @@ import UsersPage from './features/users/UsersPage.jsx';
 import ProfilePage from './features/users/ProfilePage.jsx';
 import SettingsPage from './features/users/SettingsPage.jsx';
 import NotFoundPage from './features/misc/NotFoundPage.jsx';
+import QuotationResponsePage from './features/quotations/QuotationResponsePage.jsx';
 
 export default function App() {
   return (
@@ -43,6 +44,7 @@ export default function App() {
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/verify-email" element={<VerifyEmailPage />} />
+      <Route path="/quotation-response" element={<QuotationResponsePage />} />
       <Route element={<ProtectedRoute />}>
         <Route element={<DashboardLayout />}>
           <Route index element={<DashboardPage />} />

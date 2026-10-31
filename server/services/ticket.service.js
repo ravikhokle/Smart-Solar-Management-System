@@ -83,8 +83,6 @@ export async function createTicket(actor, payload) {
       subject: `Service ticket ${ticket.ticketNumber}`,
       title: 'Service request received',
       body: `We opened ticket ${ticket.ticketNumber}. Warranty status: ${ticket.warrantyStatus.replace('_', ' ')}.`,
-      ctaUrl: `${env.clientUrl}/tickets/${ticket._id}`,
-      ctaLabel: 'View ticket',
     });
   }
   await writeAudit({ actor: actor._id, action: 'ticket.create', entityType: 'ServiceTicket', entityId: ticket._id });

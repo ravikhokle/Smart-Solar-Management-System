@@ -9,6 +9,7 @@ import Modal from '../../components/common/Modal.jsx';
 import Field from '../../components/common/Field.jsx';
 import Badge, { statusTone } from '../../components/common/Badge.jsx';
 import { dt } from '../../utils/format.js';
+import RowActions from '../../components/common/RowActions.jsx';
 
 export default function InstallationsPage() {
   const [params] = useSearchParams();
@@ -81,6 +82,11 @@ export default function InstallationsPage() {
             key: 'status',
             header: 'Status',
             render: (r) => <Badge tone={statusTone(r.status)}>{r.status?.replace(/_/g, ' ')}</Badge>,
+          },
+          {
+            key: 'actions',
+            header: 'Actions',
+            render: (r) => <RowActions editTo={`/installations/${r._id}`} />,
           },
         ]}
       />

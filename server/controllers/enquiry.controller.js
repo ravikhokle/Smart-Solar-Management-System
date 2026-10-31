@@ -20,6 +20,11 @@ export const update = asyncHandler(async (req, res) => {
   ok(res, await svc.updateEnquiry(req.user, req.params.id, req.body), 'Enquiry updated');
 });
 
+export const remove = asyncHandler(async (req, res) => {
+  await svc.deleteEnquiry(req.user, req.params.id);
+  res.status(204).send();
+});
+
 export const convert = asyncHandler(async (req, res) => {
   ok(res, await svc.convertToSurvey(req.user, req.params.id, req.body), 'Site survey created');
 });

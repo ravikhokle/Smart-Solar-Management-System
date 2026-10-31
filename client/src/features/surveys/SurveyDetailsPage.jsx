@@ -13,13 +13,41 @@ export default function SurveyDetailsPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { data, loading, reload } = useApi(() => api.get(`/surveys/${id}`), [id]);
-  const { register, handleSubmit, reset } = useForm();
+  const { register, handleSubmit, reset } = useForm({
+    defaultValues: {
+      roofAreaSqft: '',
+      roofDirection: '',
+      roofTilt: '',
+      cableDistanceM: '',
+      roofCondition: '',
+      availableSpaceSqft: '',
+      proposedCapacityKw: '3',
+      systemType: 'on_grid',
+      technicalObservations: '',
+      surveyDate: '',
+      surveyor: '',
+    },
+  });
   const [files, setFiles] = useState([]);
   const [reject, setReject] = useState(false);
   const [reason, setReason] = useState('');
 
   useEffect(() => {
-    if (data) reset(data);
+    if (data) {
+      reset({
+        roofAreaSqft: data.roofAreaSqft ?? '',
+        roofDirection: data.roofDirection ?? '',
+        roofTilt: data.roofTilt ?? '',
+        cableDistanceM: data.cableDistanceM ?? '',
+        roofCondition: data.roofCondition ?? '',
+        availableSpaceSqft: data.availableSpaceSqft ?? '',
+        proposedCapacityKw: String(data.proposedCapacityKw ?? data.enquiry?.expectedCapacityKw ?? 3),
+        systemType: data.systemType || data.enquiry?.systemType || 'on_grid',
+        technicalObservations: data.technicalObservations ?? '',
+        surveyDate: data.surveyDate ? data.surveyDate.slice(0, 10) : '',
+        surveyor: data.surveyor?._id || data.surveyor || '',
+      });
+    }
   }, [data, reset]);
 
   if (loading || !data) return <TableSkeleton />;

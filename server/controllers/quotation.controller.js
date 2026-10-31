@@ -20,6 +20,11 @@ export const update = asyncHandler(async (req, res) => {
   ok(res, await svc.updateQuotation(req.user, req.params.id, req.body), 'Quotation updated');
 });
 
+export const remove = asyncHandler(async (req, res) => {
+  await svc.deleteQuotation(req.user, req.params.id);
+  res.status(204).send();
+});
+
 export const send = asyncHandler(async (req, res) => {
   ok(res, await svc.sendQuotation(req.user, req.params.id), 'Quotation sent');
 });

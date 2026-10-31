@@ -49,6 +49,12 @@ export function loadEnv() {
     },
     clientUrl: process.env.CLIENT_URL || 'http://localhost:5173',
     serverUrl: process.env.SERVER_URL || `http://localhost:${process.env.PORT || 5000}`,
+    razorpay: {
+      keyId: process.env.RAZORPAY_KEY_ID || '',
+      keySecret: process.env.RAZORPAY_KEY_SECRET || '',
+      webhookSecret: process.env.RAZORPAY_WEBHOOK_SECRET || '',
+      mode: process.env.RAZORPAY_MODE || 'test',
+    },
     cloudinary: {
       cloudName: process.env.CLOUDINARY_CLOUD_NAME || '',
       apiKey: process.env.CLOUDINARY_API_KEY || '',

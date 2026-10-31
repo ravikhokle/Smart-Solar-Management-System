@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import api, { toast } from '../../services/api.js';
 import { useApi } from '../../hooks/useApi.js';
 import PageHeader from '../../components/common/PageHeader.jsx';
@@ -9,12 +9,16 @@ import Modal from '../../components/common/Modal.jsx';
 import Field from '../../components/common/Field.jsx';
 import Badge, { statusTone } from '../../components/common/Badge.jsx';
 import { d } from '../../utils/format.js';
+import ConfirmDialog from '../../components/common/ConfirmDialog.jsx';
+import RowActions from '../../components/common/RowActions.jsx';
 
 export default function EnquiriesPage() {
+  const navigate = useNavigate();
   const [q, setQ] = useState('');
   const [status, setStatus] = useState('');
   const [page, setPage] = useState(1);
   const [open, setOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null);
   const { data, meta, loading, reload } = useApi(
     () => api.get('/enquiries', { params: { q, status, page } }),
     [q, status, page]
@@ -47,6 +51,27 @@ export default function EnquiriesPage() {
       reload();
     } catch (err) {
       // api interceptor displays toast
+    }
+  };
+
+  const deleteEnquiry = async () => {
+    try {
+      await api.delete(`/enquiries/${deleteTarget._id}`);
+      toast('success', 'Enquiry deleted successfully');
+      setDeleteTarget(null);
+      reload();
+    } catch (err) {
+      // api interceptor displays the backend error
+    }
+  };
+
+  const convertToSurvey = async (enquiry) => {
+    try {
+      const response = await api.post(`/enquiries/${enquiry._id}/convert-survey`);
+      toast('success', 'Site survey created');
+      navigate(`/surveys/${response.data.data._id}`);
+    } catch (err) {
+      // api interceptor displays the backend error
     }
   };
 
@@ -115,6 +140,22 @@ export default function EnquiriesPage() {
             render: (r) => <Badge tone={statusTone(r.status)}>{r.status}</Badge>,
           },
           { key: 'enquiryDate', header: 'Date', render: (r) => d(r.enquiryDate) },
+          {
+            key: 'actions',
+            header: 'Actions',
+            render: (r) => (
+              <div className="flex items-center gap-3 whitespace-nowrap">
+                <RowActions editTo={`/enquiries/${r._id}`} onDelete={() => setDeleteTarget(r)} />
+                <button
+                  type="button"
+                  className="text-sm font-medium text-solar-orange hover:underline"
+                  onClick={() => convertToSurvey(r)}
+                >
+                  {['survey_requested', 'converted'].includes(r.status) ? 'Open survey' : 'Site survey'}
+                </button>
+              </div>
+            ),
+          },
         ]}
       />
       {open && (
@@ -223,6 +264,16 @@ export default function EnquiriesPage() {
             </div>
           </form>
         </Modal>
+      )}
+      {deleteTarget && (
+        <ConfirmDialog
+          title="Delete enquiry?"
+          message="This enquiry and its related survey data will be permanently deleted."
+          confirmLabel="Delete enquiry"
+          danger
+          onClose={() => setDeleteTarget(null)}
+          onConfirm={deleteEnquiry}
+        />
       )}
     </div>
   );

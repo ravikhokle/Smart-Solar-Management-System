@@ -2,6 +2,7 @@ import { Customer } from '../models/Customer.js';
 import { Enquiry } from '../models/Enquiry.js';
 import { SiteSurvey } from '../models/SiteSurvey.js';
 import { Order } from '../models/Order.js';
+import { Quotation } from '../models/Quotation.js';
 import { ApiError } from '../utils/apiError.js';
 import { paginate, searchFilter } from '../utils/query.js';
 import { writeAudit } from './audit.service.js';
@@ -170,8 +171,13 @@ export async function deleteCustomer(actor, id) {
   const customer = await Customer.findById(id);
   if (!customer) throw new ApiError(404, 'Customer not found');
   const orders = await Order.countDocuments({ customer: id });
-  if (orders) {
-    throw new ApiError(400, 'Cannot delete a customer who already has orders');
+  const [enquiries, surveys, quotations] = await Promise.all([
+    Enquiry.countDocuments({ customer: id }),
+    SiteSurvey.countDocuments({ customer: id }),
+    Quotation.countDocuments({ customer: id }),
+  ]);
+  if (orders || enquiries || surveys || quotations) {
+    throw new ApiError(400, 'Cannot delete a customer with existing enquiries, surveys, quotations, or orders');
   }
   await Enquiry.deleteMany({ customer: id });
   await SiteSurvey.deleteMany({ customer: id });

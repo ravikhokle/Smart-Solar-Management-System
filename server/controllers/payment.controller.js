@@ -16,6 +16,11 @@ export const get = asyncHandler(async (req, res) => {
   ok(res, await svc.getPayment(req.params.id));
 });
 
+export const remove = asyncHandler(async (req, res) => {
+  await svc.deletePayment(req.user, req.params.id);
+  res.status(204).send();
+});
+
 export const receiptPdf = asyncHandler(async (req, res) => {
   const { payment, order } = await svc.getPayment(req.params.id);
   await streamPdf(res, `${payment.receiptNumber}.pdf`, (doc) => {

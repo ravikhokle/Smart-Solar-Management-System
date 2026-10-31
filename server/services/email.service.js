@@ -40,7 +40,7 @@ export function wrapEmail({ title, body, ctaLabel, ctaUrl }) {
 </html>`;
 }
 
-export async function sendEmail({ to, subject, title, body, ctaLabel, ctaUrl }) {
+export async function sendEmail({ to, subject, title, body, ctaLabel, ctaUrl, attachments = [] }) {
   const tx = getTransporter();
   if (!tx || !to) {
     return { sent: false, reason: 'smtp_not_configured' };
@@ -51,6 +51,7 @@ export async function sendEmail({ to, subject, title, body, ctaLabel, ctaUrl }) 
       to,
       subject,
       html: wrapEmail({ title: title || subject, body, ctaLabel, ctaUrl }),
+      attachments,
     });
     return { sent: true };
   } catch (err) {

@@ -9,6 +9,7 @@ import { Installation } from '../models/Installation.js';
 import { Warranty } from '../models/Warranty.js';
 import { ServiceTicket } from '../models/ServiceTicket.js';
 import { SubsidyApplication } from '../models/SubsidyApplication.js';
+import { Technician } from '../models/Technician.js';
 import { getSettings } from '../models/Setting.js';
 import { paginate } from '../utils/query.js';
 import { lowStock } from './inventory.service.js';
@@ -40,7 +41,54 @@ export async function listExpenses({ page, limit, order }) {
   return { items, meta: { page: p, limit: l, total } };
 }
 
-export async function dashboard() {
+export async function dashboard(actor) {
+  if (actor?.role === 'technician') {
+    const technician = await Technician.findOne({ user: actor._id }).select('_id');
+    const technicianId = technician?._id;
+    const [assignedInstallations, completedInstallations, pendingInstallations, assignedTickets] =
+      await Promise.all([
+        Installation.countDocuments({ technicians: technicianId }),
+        Installation.countDocuments({ technicians: technicianId, status: 'completed' }),
+        Installation.countDocuments({
+          technicians: technicianId,
+          status: { $in: ['scheduled', 'assigned', 'in_progress', 'on_hold'] },
+        }),
+        ServiceTicket.countDocuments({
+          assignedTechnician: technicianId,
+          status: { $nin: ['closed'] },
+        }),
+      ]);
+
+    return {
+      kpis: {
+        assignedInstallations,
+        completedInstallations,
+        pendingInstallations,
+        openServiceTickets: assignedTickets,
+      },
+      charts: { installationByStatus: [] },
+      recentEnquiries: [],
+      upcomingInstallations: await Installation.find({
+        technicians: technicianId,
+        status: { $in: ['scheduled', 'assigned'] },
+        scheduledDate: { $gte: new Date() },
+      })
+        .populate('customer', 'fullName')
+        .populate('order', 'orderNumber')
+        .sort({ scheduledDate: 1 })
+        .limit(6),
+      pendingPaymentOrders: [],
+      lowStock: [],
+      recentTickets: await ServiceTicket.find({
+        assignedTechnician: technicianId,
+        status: { $nin: ['closed'] },
+      })
+        .populate('customer', 'fullName')
+        .sort({ createdAt: -1 })
+        .limit(6),
+    };
+  }
+
   const [
     totalCustomers,
     totalEnquiries,

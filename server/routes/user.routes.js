@@ -9,4 +9,5 @@ router.get('/', authorize('admin'), ctrl.list);
 router.post('/', authorize('admin'), ctrl.create);
 router.patch('/:id', authorize('admin'), ctrl.update);
 router.patch('/:id/active', authorize('admin'), ctrl.setActive);
+router.delete('/:id', authorize('admin'), ctrl.remove);
 export default router;

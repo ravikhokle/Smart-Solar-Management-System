@@ -28,6 +28,8 @@ const orderSchema = new mongoose.Schema(
     assignedTeam: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Technician' }],
     expectedInstallationDate: Date,
     costSnapshot: { type: Number, default: 0 },
+    razorpayPaymentLinkId: { type: String, default: '' },
+    razorpayPaymentLinkUrl: { type: String, default: '' },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   },
   { timestamps: true }

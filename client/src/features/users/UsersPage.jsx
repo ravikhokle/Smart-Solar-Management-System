@@ -8,11 +8,14 @@ import Modal from '../../components/common/Modal.jsx';
 import Field from '../../components/common/Field.jsx';
 import Badge, { statusTone } from '../../components/common/Badge.jsx';
 import ConfirmDialog from '../../components/common/ConfirmDialog.jsx';
+import RowActions from '../../components/common/RowActions.jsx';
 
 export default function UsersPage() {
   const [page, setPage] = useState(1);
   const [open, setOpen] = useState(false);
   const [target, setTarget] = useState(null);
+  const [editing, setEditing] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
   const { data, meta, loading, reload } = useApi(() => api.get('/users', { params: { page } }), [page]);
   const {
     register,
@@ -31,13 +34,36 @@ export default function UsersPage() {
 
   const onSubmit = async (values) => {
     try {
-      await api.post('/users', values);
-      toast('success', 'User account created successfully');
+      if (editing) {
+        await api.patch(`/users/${editing.id || editing._id}`, values);
+        toast('success', 'User account updated successfully');
+      } else {
+        await api.post('/users', values);
+        toast('success', 'User account created successfully');
+      }
       setOpen(false);
+      setEditing(null);
       reset();
       reload();
     } catch (err) {
       // api interceptor will display toast
+    }
+  };
+
+  const startEdit = (user) => {
+    setEditing(user);
+    reset({ name: user.name, email: user.email, phone: user.phone || '', role: user.role, password: '' });
+    setOpen(true);
+  };
+
+  const deleteUser = async () => {
+    try {
+      await api.delete(`/users/${deleteTarget.id || deleteTarget._id}`);
+      toast('success', 'User account deleted successfully');
+      setDeleteTarget(null);
+      reload();
+    } catch (err) {
+      // api interceptor displays the backend error
     }
   };
 
@@ -46,7 +72,7 @@ export default function UsersPage() {
       <PageHeader
         title="User management"
         subtitle="Registration is not public. Only administrators can create accounts."
-        actions={<button className="btn-primary" onClick={() => setOpen(true)}>Create user</button>}
+        actions={        <button className="btn-primary" onClick={() => { setEditing(null); reset(); setOpen(true); }}>Create user</button>}
       />
       <DataTable
         loading={loading}
@@ -71,21 +97,25 @@ export default function UsersPage() {
           },
           {
             key: 'actions',
-            header: '',
+            header: 'Actions',
             render: (r) => (
-              <button className="btn-secondary text-xs" onClick={() => setTarget(r)}>
-                {r.isActive ? 'Deactivate' : 'Activate'}
-              </button>
+              <div className="flex items-center gap-3">
+                <RowActions onEdit={() => startEdit(r)} onDelete={() => setDeleteTarget(r)} />
+                <button className="btn-secondary text-xs" onClick={() => setTarget(r)}>
+                  {r.isActive ? 'Deactivate' : 'Activate'}
+                </button>
+              </div>
             ),
           },
         ]}
       />
       {open && (
         <Modal
-          title="Create user"
+          title={editing ? 'Edit user' : 'Create user'}
           onClose={() => {
             if (!isSubmitting) {
               setOpen(false);
+              setEditing(null);
               reset();
             }
           }}
@@ -132,7 +162,7 @@ export default function UsersPage() {
               />
             </Field>
 
-            <Field label="Password" error={errors.password?.message}>
+            {!editing && <Field label="Password" error={errors.password?.message}>
               <input
                 type="password"
                 className={`input ${errors.password ? 'border-red-500' : ''}`}
@@ -142,7 +172,7 @@ export default function UsersPage() {
                   minLength: { value: 8, message: 'Password must be at least 8 characters' },
                 })}
               />
-            </Field>
+            </Field>}
 
             <Field label="Role">
               <select className="input" {...register('role')}>
@@ -160,13 +190,14 @@ export default function UsersPage() {
                 disabled={isSubmitting}
                 onClick={() => {
                   setOpen(false);
+                  setEditing(null);
                   reset();
                 }}
               >
                 Cancel
               </button>
               <button className="btn-primary" type="submit" disabled={isSubmitting}>
-                {isSubmitting ? 'Creating account...' : 'Create account'}
+                {isSubmitting ? 'Saving account...' : editing ? 'Save changes' : 'Create account'}
               </button>
             </div>
           </form>
@@ -188,6 +219,16 @@ export default function UsersPage() {
               // api interceptor
             }
           }}
+        />
+      )}
+      {deleteTarget && (
+        <ConfirmDialog
+          title="Delete user account?"
+          message={`${deleteTarget.name} will permanently lose access. This action cannot be undone.`}
+          confirmLabel="Delete account"
+          danger
+          onClose={() => setDeleteTarget(null)}
+          onConfirm={deleteUser}
         />
       )}
     </div>

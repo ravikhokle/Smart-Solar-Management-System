@@ -21,6 +21,11 @@ export const updateTechnician = asyncHandler(async (req, res) => {
   ok(res, await techSvc.updateTechnician(req.params.id, req.body), 'Technician updated');
 });
 
+export const deleteTechnician = asyncHandler(async (req, res) => {
+  await techSvc.deleteTechnician(req.user, req.params.id);
+  res.status(204).send();
+});
+
 export const listInstallations = asyncHandler(async (req, res) => {
   const data = await instSvc.listInstallations(req.query);
   ok(res, data.items, 'Installations', data.meta);

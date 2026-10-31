@@ -8,6 +8,7 @@ import DataTable from '../../components/common/DataTable.jsx';
 import Modal from '../../components/common/Modal.jsx';
 import Field from '../../components/common/Field.jsx';
 import Badge, { statusTone } from '../../components/common/Badge.jsx';
+import RowActions from '../../components/common/RowActions.jsx';
 
 export default function TicketsPage() {
   const navigate = useNavigate();
@@ -81,6 +82,11 @@ export default function TicketsPage() {
             key: 'status',
             header: 'Status',
             render: (r) => <Badge tone={statusTone(r.status)}>{r.status?.replace(/_/g, ' ')}</Badge>,
+          },
+          {
+            key: 'actions',
+            header: 'Actions',
+            render: (r) => <RowActions editTo={`/tickets/${r._id}`} />,
           },
         ]}
       />

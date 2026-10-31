@@ -21,3 +21,8 @@ export const setActive = asyncHandler(async (req, res) => {
   const user = await userService.setUserActive(req.user, req.params.id, Boolean(req.body.isActive));
   ok(res, user, user.isActive ? 'User activated' : 'User deactivated');
 });
+
+export const remove = asyncHandler(async (req, res) => {
+  await userService.deleteUser(req.user, req.params.id);
+  res.status(204).send();
+});

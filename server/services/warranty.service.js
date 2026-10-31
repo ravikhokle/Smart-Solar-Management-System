@@ -3,6 +3,8 @@ import { Customer } from '../models/Customer.js';
 import { ApiError } from '../utils/apiError.js';
 import { paginate, escapeRegex } from '../utils/query.js';
 import { nextNumber } from '../utils/sequence.js';
+import { sendEmail } from './email.service.js';
+import { createPdfBuffer, drawKeyValues } from './pdf.service.js';
 
 const populate = [
   { path: 'customer', select: 'fullName phone email' },
@@ -55,6 +57,31 @@ export async function activateWarrantiesForOrder(orderId, actor) {
     if (!w.certificateNumber) w.certificateNumber = await nextNumber('WR');
     w.history.push({ status: 'active', note: 'Activated on installation completion', by: actor?._id });
     await w.save();
+    const active = await getWarranty(w._id);
+    if (active.customer?.email) {
+      const pdf = await createPdfBuffer((doc) => {
+        doc.moveDown(3);
+        doc.fontSize(18).text('Warranty certificate');
+        doc.moveDown();
+        drawKeyValues(doc, [
+          ['Certificate', active.certificateNumber],
+          ['Customer', active.customer.fullName],
+          ['Product', active.product?.name],
+          ['Serial', active.serial || '—'],
+          ['Duration (months)', active.durationMonths],
+          ['Start', new Date(active.startDate).toLocaleDateString()],
+          ['Expiry', new Date(active.expiryDate).toLocaleDateString()],
+          ['Status', active.status],
+        ]);
+      });
+      await sendEmail({
+        to: active.customer.email,
+        subject: `Warranty certificate ${active.certificateNumber}`,
+        title: 'Your warranty certificate',
+        body: 'Your solar equipment warranty has been activated. The warranty certificate is attached as a PDF.',
+        attachments: [{ filename: `${active.certificateNumber}.pdf`, content: pdf, contentType: 'application/pdf' }],
+      });
+    }
   }
 }
 

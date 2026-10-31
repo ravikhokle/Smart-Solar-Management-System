@@ -10,6 +10,7 @@ router.get('/templates', ctrl.templates);
 router.post('/templates', authorize('admin'), ctrl.saveTemplate);
 router.get('/:id', ctrl.get);
 router.patch('/:id', ctrl.update);
+router.delete('/:id', ctrl.remove);
 router.post('/:id/send', ctrl.send);
 router.post('/:id/decision', ctrl.decide);
 router.get('/:id/pdf', ctrl.pdf);

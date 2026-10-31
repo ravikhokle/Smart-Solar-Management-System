@@ -6,12 +6,25 @@ import { useApi } from '../../hooks/useApi.js';
 import PageHeader from '../../components/common/PageHeader.jsx';
 import DataTable from '../../components/common/DataTable.jsx';
 import Badge, { statusTone } from '../../components/common/Badge.jsx';
+import ConfirmDialog from '../../components/common/ConfirmDialog.jsx';
+import RowActions from '../../components/common/RowActions.jsx';
 
 export default function SerialsPage() {
   const [q, setQ] = useState('');
   const [page, setPage] = useState(1);
   const [lookup, setLookup] = useState(null);
-  const { data, meta, loading } = useApi(() => api.get('/inventory/serials', { params: { q, page } }), [q, page]);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const { data, meta, loading, reload } = useApi(() => api.get('/inventory/serials', { params: { q, page } }), [q, page]);
+  const deleteSerial = async () => {
+    try {
+      await api.delete(`/inventory/serials/${deleteTarget._id}`);
+      toast('success', 'Serial number deleted successfully');
+      setDeleteTarget(null);
+      reload();
+    } catch (err) {
+      // api interceptor displays the backend error
+    }
+  };
 
   const find = async (serial) => {
     const res = await api.get(`/inventory/serials/lookup/${encodeURIComponent(serial)}`);
@@ -60,8 +73,23 @@ export default function SerialsPage() {
           { key: 'product', header: 'Product', render: (r) => r.product?.name },
           { key: 'status', header: 'Status', render: (r) => <Badge tone={statusTone(r.status)}>{r.status}</Badge> },
           { key: 'qr', header: 'QR', render: (r) => r.qrImageDataUrl ? <img src={r.qrImageDataUrl} alt="" className="h-10 w-10" /> : '—' },
+          {
+            key: 'actions',
+            header: 'Actions',
+            render: (r) => <RowActions onDelete={() => setDeleteTarget(r)} />,
+          },
         ]}
       />
+      {deleteTarget && (
+        <ConfirmDialog
+          title="Delete serial number?"
+          message={`${deleteTarget.serial} will be permanently deleted. Only in-stock serial numbers can be deleted.`}
+          confirmLabel="Delete serial"
+          danger
+          onClose={() => setDeleteTarget(null)}
+          onConfirm={deleteSerial}
+        />
+      )}
     </div>
   );
 }

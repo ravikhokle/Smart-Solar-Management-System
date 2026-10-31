@@ -27,6 +27,12 @@ export default function OrderDetailsPage() {
     reload();
   };
 
+  const syncPayment = async () => {
+    await api.post(`/orders/${id}/sync-payment`);
+    toast('success', 'Razorpay payment synchronized');
+    reload();
+  };
+
   return (
     <div>
       <PageHeader
@@ -46,6 +52,11 @@ export default function OrderDetailsPage() {
           <div>Outstanding {money(data.outstandingBalance)}</div>
           <div>Capacity {data.systemCapacityKw} kW</div>
           <div>Installation {data.installationStatus}</div>
+          {data.razorpayPaymentLinkUrl && (
+            <button className="btn-secondary mt-2" onClick={syncPayment}>
+              Sync Razorpay payment
+            </button>
+          )}
         </div>
         <div className="card p-5">
           <h3 className="mb-3 font-semibold">Record payment</h3>

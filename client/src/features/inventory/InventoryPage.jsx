@@ -8,6 +8,8 @@ import DataTable from '../../components/common/DataTable.jsx';
 import Modal from '../../components/common/Modal.jsx';
 import Field from '../../components/common/Field.jsx';
 import Badge from '../../components/common/Badge.jsx';
+import ConfirmDialog from '../../components/common/ConfirmDialog.jsx';
+import RowActions from '../../components/common/RowActions.jsx';
 import { money } from '../../utils/format.js';
 
 const KINDS = [
@@ -29,6 +31,8 @@ export default function InventoryPage() {
   const [page, setPage] = useState(1);
   const [open, setOpen] = useState(false);
   const [catOpen, setCatOpen] = useState(false);
+  const [editing, setEditing] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
   const { data, meta, loading, reload } = useApi(() => api.get('/inventory/products', { params: { q, page } }), [q, page]);
   const cats = useApi(() => api.get('/inventory/categories'), []);
 
@@ -36,6 +40,7 @@ export default function InventoryPage() {
     register,
     handleSubmit,
     reset,
+    setValue,
     formState: { isSubmitting, errors },
   } = useForm({
     defaultValues: {
@@ -47,6 +52,7 @@ export default function InventoryPage() {
       model: '',
       unitCost: '',
       sellingPrice: '',
+      quantityOnHand: '0',
       minStockLevel: '5',
       warrantyDurationMonths: 12,
       warrantyActivationMilestone: 'installation',
@@ -64,17 +70,25 @@ export default function InventoryPage() {
 
   const onSubmit = async (values) => {
     try {
-      await api.post('/inventory/products', {
+      const payload = {
         ...values,
         sku: values.sku.trim().toUpperCase(),
         unitCost: Number(values.unitCost),
         sellingPrice: Number(values.sellingPrice),
+        quantityOnHand: Number(values.quantityOnHand || 0),
         minStockLevel: Number(values.minStockLevel || 0),
         warrantyDurationMonths: Number(values.warrantyDurationMonths || 0),
         requiresSerialNumber: Boolean(values.requiresSerialNumber === 'true' || values.requiresSerialNumber === true),
-      });
-      toast('success', 'Product created successfully');
+      };
+      if (editing) {
+        await api.patch(`/inventory/products/${editing._id}`, payload);
+        toast('success', 'Product updated successfully');
+      } else {
+        await api.post('/inventory/products', payload);
+        toast('success', 'Product created successfully');
+      }
       setOpen(false);
+      setEditing(null);
       reset();
       reload();
     } catch (err) {
@@ -82,13 +96,49 @@ export default function InventoryPage() {
     }
   };
 
+  const startEdit = (product) => {
+    setEditing(product);
+    reset({
+      name: product.name || '',
+      sku: product.sku || '',
+      category: product.category?._id || product.category || '',
+      kind: product.kind || 'other',
+      brand: product.brand || '',
+      model: product.model || '',
+      unitCost: product.unitCost ?? '',
+      sellingPrice: product.sellingPrice ?? '',
+      quantityOnHand: product.quantityOnHand ?? 0,
+      minStockLevel: product.minStockLevel ?? 0,
+      warrantyDurationMonths: product.warrantyDurationMonths ?? 0,
+      warrantyActivationMilestone: product.warrantyActivationMilestone || 'installation',
+      requiresSerialNumber: String(Boolean(product.requiresSerialNumber)),
+      description: product.description || '',
+    });
+    setOpen(true);
+  };
+
+  const deleteProduct = async () => {
+    try {
+      await api.delete(`/inventory/products/${deleteTarget._id}`);
+      toast('success', 'Product deleted successfully');
+      setDeleteTarget(null);
+      reload();
+    } catch (err) {
+      // api interceptor displays the backend error
+    }
+  };
+
   const onCatSubmit = async (values) => {
     try {
-      await api.post('/inventory/categories', values);
+      const response = await api.post('/inventory/categories', values);
       toast('success', 'Category created successfully');
       setCatOpen(false);
       catForm.reset();
-      cats.reload();
+      await cats.reload();
+      const category = response.data?.data;
+      if (category?._id) {
+        setValue('category', category._id, { shouldDirty: true });
+      }
     } catch (err) {
       // api interceptor
     }
@@ -148,6 +198,7 @@ export default function InventoryPage() {
             header: 'Kind',
             render: (r) => <span className="capitalize">{r.kind?.replace(/_/g, ' ')}</span>,
           },
+          { key: 'quantityOnHand', header: 'Total stock' },
           { key: 'availableQuantity', header: 'Available' },
           { key: 'sellingPrice', header: 'Selling price', render: (r) => money(r.sellingPrice) },
           {
@@ -155,15 +206,23 @@ export default function InventoryPage() {
             header: 'Stock status',
             render: (r) => (r.isLowStock ? <Badge tone="warning">Low stock</Badge> : <Badge tone="success">In stock</Badge>),
           },
+          {
+            key: 'actions',
+            header: 'Actions',
+            render: (r) => (
+              <RowActions onEdit={() => startEdit(r)} onDelete={() => setDeleteTarget(r)} />
+            ),
+          },
         ]}
       />
       {open && (
         <Modal
-          title="New product"
+          title={editing ? 'Edit product' : 'New product'}
           wide
           onClose={() => {
             if (!isSubmitting) {
               setOpen(false);
+              setEditing(null);
               reset();
             }
           }}
@@ -189,14 +248,23 @@ export default function InventoryPage() {
             </Field>
 
             <Field label="Category">
-              <select className="input" {...register('category')}>
-                <option value="">None (Uncategorized)</option>
-                {(cats.data || []).map((c) => (
-                  <option key={c._id} value={c._id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
+              <div className="flex gap-2">
+                <select className="input min-w-0 flex-1" {...register('category')}>
+                  <option value="">None (Uncategorized)</option>
+                  {(cats.data || []).map((c) => (
+                    <option key={c._id} value={c._id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  className="btn-secondary shrink-0 whitespace-nowrap"
+                  onClick={() => setCatOpen(true)}
+                >
+                  + New
+                </button>
+              </div>
             </Field>
 
             <Field label="Kind">
@@ -245,6 +313,21 @@ export default function InventoryPage() {
               />
             </Field>
 
+            <Field label="Total stock quantity" error={errors.quantityOnHand?.message}>
+              <input
+                type="number"
+                min="0"
+                step="1"
+                className={`input ${errors.quantityOnHand ? 'border-red-500' : ''}`}
+                placeholder="0"
+                {...register('quantityOnHand', {
+                  required: 'Total stock quantity is required',
+                  min: { value: 0, message: 'Stock cannot be negative' },
+                  valueAsNumber: true,
+                })}
+              />
+            </Field>
+
             <Field label="Minimum stock warning level">
               <input type="number" min="0" className="input" placeholder="5" {...register('minStockLevel')} />
             </Field>
@@ -280,13 +363,14 @@ export default function InventoryPage() {
                 disabled={isSubmitting}
                 onClick={() => {
                   setOpen(false);
+                  setEditing(null);
                   reset();
                 }}
               >
                 Cancel
               </button>
               <button className="btn-primary" type="submit" disabled={isSubmitting}>
-                {isSubmitting ? 'Saving product...' : 'Save product'}
+                {isSubmitting ? 'Saving product...' : editing ? 'Save changes' : 'Save product'}
               </button>
             </div>
           </form>
@@ -331,6 +415,16 @@ export default function InventoryPage() {
             </div>
           </form>
         </Modal>
+      )}
+      {deleteTarget && (
+        <ConfirmDialog
+          title="Delete product?"
+          message={`${deleteTarget.name} will be permanently deleted. Products with reserved stock cannot be deleted.`}
+          confirmLabel="Delete product"
+          danger
+          onClose={() => setDeleteTarget(null)}
+          onConfirm={deleteProduct}
+        />
       )}
     </div>
   );

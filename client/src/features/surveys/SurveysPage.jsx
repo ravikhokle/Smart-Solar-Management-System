@@ -6,11 +6,23 @@ import PageHeader from '../../components/common/PageHeader.jsx';
 import DataTable from '../../components/common/DataTable.jsx';
 import Badge, { statusTone } from '../../components/common/Badge.jsx';
 import { d } from '../../utils/format.js';
+import ConfirmDialog from '../../components/common/ConfirmDialog.jsx';
+import RowActions from '../../components/common/RowActions.jsx';
 
 export default function SurveysPage() {
   const [status, setStatus] = useState('');
   const [page, setPage] = useState(1);
-  const { data, meta, loading } = useApi(() => api.get('/surveys', { params: { status, page } }), [status, page]);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const { data, meta, loading, reload } = useApi(() => api.get('/surveys', { params: { status, page } }), [status, page]);
+  const deleteSurvey = async () => {
+    try {
+      await api.delete(`/surveys/${deleteTarget._id}`);
+      setDeleteTarget(null);
+      reload();
+    } catch (err) {
+      // api interceptor displays the backend error
+    }
+  };
   return (
     <div>
       <PageHeader title="Site surveys" subtitle="Quotations can be created only after a survey is approved." />
@@ -32,8 +44,23 @@ export default function SurveysPage() {
           { key: 'proposedCapacityKw', header: 'kW' },
           { key: 'approvalStatus', header: 'Status', render: (r) => <Badge tone={statusTone(r.approvalStatus)}>{r.approvalStatus}</Badge> },
           { key: 'surveyDate', header: 'Date', render: (r) => d(r.surveyDate) },
+          {
+            key: 'actions',
+            header: 'Actions',
+            render: (r) => <RowActions editTo={`/surveys/${r._id}`} onDelete={() => setDeleteTarget(r)} />,
+          },
         ]}
       />
+      {deleteTarget && (
+        <ConfirmDialog
+          title="Delete site survey?"
+          message="This survey will be permanently deleted."
+          confirmLabel="Delete survey"
+          danger
+          onClose={() => setDeleteTarget(null)}
+          onConfirm={deleteSurvey}
+        />
+      )}
     </div>
   );
 }

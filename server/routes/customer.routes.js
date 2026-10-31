@@ -2,6 +2,8 @@ import { Router } from 'express';
 import * as ctrl from '../controllers/customer.controller.js';
 import { protect, authorize } from '../middleware/auth.middleware.js';
 
+
+
 const router = Router();
 router.use(protect, authorize('admin', 'sales_executive', 'technician'));
 router.get('/', ctrl.list);
@@ -10,4 +12,5 @@ router.post('/', authorize('admin', 'sales_executive'), ctrl.create);
 router.get('/:id', ctrl.get);
 router.patch('/:id', authorize('admin', 'sales_executive'), ctrl.update);
 router.delete('/:id', authorize('admin', 'sales_executive'), ctrl.remove);
+//router.get('/search', search());
 export default router;

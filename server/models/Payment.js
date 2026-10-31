@@ -8,7 +8,7 @@ const paymentSchema = new mongoose.Schema(
     amount: { type: Number, required: true, min: 0.01 },
     method: {
       type: String,
-      enum: ['cash', 'upi', 'neft', 'rtgs', 'cheque', 'card', 'other'],
+      enum: ['cash', 'upi', 'neft', 'rtgs', 'cheque', 'card', 'razorpay', 'other'],
       default: 'upi',
     },
     transactionReference: { type: String, default: '' },

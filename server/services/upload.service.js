@@ -10,11 +10,21 @@ export async function uploadBuffer(file, folder = 'heliosflow') {
     );
   }
   const dataUri = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
-  const result = await cloudinary.uploader.upload(dataUri, {
-    folder,
-    resource_type: 'auto',
-  });
-  return { url: result.secure_url, publicId: result.public_id };
+  try {
+    const result = await cloudinary.uploader.upload(dataUri, {
+      folder,
+      resource_type: 'auto',
+    });
+    return { url: result.secure_url, publicId: result.public_id };
+  } catch (error) {
+    if (error?.http_code === 401 || error?.http_code === 403) {
+      throw new ApiError(
+        502,
+        'Cloudinary rejected the file upload. Verify the Cloudinary cloud name, API key, API secret, and upload permissions in server/.env.'
+      );
+    }
+    throw error;
+  }
 }
 
 export async function uploadMany(files, folder) {
