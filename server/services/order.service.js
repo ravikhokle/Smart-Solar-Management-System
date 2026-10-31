@@ -73,7 +73,7 @@ export async function syncRazorpayPayment(actor, id) {
       transactionReference: paid.id || paid.payment_id,
       paymentDate: paid.created_at ? new Date(paid.created_at * 1000) : new Date(),
       notes: `Razorpay payment link ${order.razorpayPaymentLinkId}`,
-      recordedBy: actor._id,
+      recordedBy: actor?._id,
     });
     await refreshPaymentStatus(order._id);
     const savedPayment = await Payment.findOne({ transactionReference: paymentId });
@@ -82,6 +82,7 @@ export async function syncRazorpayPayment(actor, id) {
       await emailPaymentReceipt(savedPayment._id);
     }
   }
+  await refreshPaymentStatus(order._id);
   return getOrder(order._id);
 }
 
@@ -114,11 +115,15 @@ export async function createOrderFromQuotation(actor, quotationId) {
   try {
     paymentLink = await createPaymentLink({ order, customer: quotation.customer });
   } catch (error) {
-    await Order.findByIdAndDelete(order._id);
-    throw error;
+    if (error.statusCode !== 503) {
+      await Order.findByIdAndDelete(order._id);
+      throw error;
+    }
   }
-  order.razorpayPaymentLinkId = paymentLink.id;
-  order.razorpayPaymentLinkUrl = paymentLink.url;
+  if (paymentLink) {
+    order.razorpayPaymentLinkId = paymentLink.id;
+    order.razorpayPaymentLinkUrl = paymentLink.url;
+  }
   await order.save();
   quotation.approvalStatus = 'converted';
   quotation.history.push({ status: 'converted', note: 'Converted to order', by: actor?._id });
@@ -140,9 +145,11 @@ export async function createOrderFromQuotation(actor, quotationId) {
       to: quotation.customer.email,
       subject: `Order ${order.orderNumber} confirmed`,
       title: 'Your solar order is confirmed',
-      body: `Order ${order.orderNumber} for ${quotation.systemCapacityKw} kW has been created. Use the secure Razorpay test payment link to pay ₹${Number(order.orderAmount).toFixed(2)}.`,
-      ctaUrl: paymentLink.url,
-      ctaLabel: 'Pay securely',
+      body: paymentLink
+        ? `Order ${order.orderNumber} for ${quotation.systemCapacityKw} kW has been created. Use the secure payment link to pay ₹${Number(order.orderAmount).toFixed(2)}.`
+        : `Order ${order.orderNumber} for ${quotation.systemCapacityKw} kW has been created. The sales team will contact you to record the payment.`,
+      ctaUrl: paymentLink?.url,
+      ctaLabel: paymentLink ? 'Pay securely' : undefined,
     });
   }
   return getOrder(order._id);

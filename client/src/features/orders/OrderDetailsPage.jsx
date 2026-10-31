@@ -20,9 +20,18 @@ export default function OrderDetailsPage() {
 
   useEffect(() => {
     if (!data || data.paymentStatus === 'paid' || !data.razorpayPaymentLinkId) return undefined;
-    const timer = setInterval(reload, 10000);
+    const timer = setInterval(async () => {
+      try {
+        await api.post(`/orders/${id}/sync-payment`, {}, { skipToast: true });
+      } catch (error) {
+        if (error.response?.status !== 400) {
+          console.error('Automatic Razorpay payment sync failed', error);
+        }
+      }
+      reload();
+    }, 10000);
     return () => clearInterval(timer);
-  }, [data, reload]);
+  }, [data, id, reload]);
 
   if (loading || !data) return <TableSkeleton />;
 

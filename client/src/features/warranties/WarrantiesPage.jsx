@@ -14,7 +14,7 @@ export default function WarrantiesPage() {
   const { data, meta, loading } = useApi(() => api.get('/warranties', { params: { q, status, page } }), [q, status, page]);
   return (
     <div>
-      <PageHeader title="Warranties" subtitle="Durations follow each product. Activation follows dispatch or installation." />
+      <PageHeader title="Warranties" subtitle="Warranties are created automatically from dispatched equipment and completed installations." />
       <div className="mb-4 flex gap-2">
         <input className="input max-w-xs" placeholder="Serial or certificate" value={q} onChange={(e) => setQ(e.target.value)} />
         <select className="input max-w-xs" value={status} onChange={(e) => setStatus(e.target.value)}>
@@ -30,7 +30,7 @@ export default function WarrantiesPage() {
         limit={meta?.limit}
         onPage={setPage}
         emptyTitle="No warranty records yet."
-        emptyDescription="Warranties are created when serial-tracked products are dispatched."
+        emptyDescription="Complete an installation after dispatching its equipment to create warranty records automatically."
         columns={[
           { key: 'serial', header: 'Serial', render: (r) => <Link className="text-solar-orange" to={`/warranties/${r._id}`}>{r.serial || r.certificateNumber || 'Pending'}</Link> },
           { key: 'customer', header: 'Customer', render: (r) => r.customer?.fullName },

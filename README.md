@@ -91,11 +91,12 @@ Sign in with the administrator you created. Create staff accounts from **Users**
 4. Generate quotation (BOM) → Accept → Convert to order  
 5. Record advance payment  
 6. Add products, receive stock (serials + QR)  
-7. Reserve stock → assign serials → dispatch (blocked until the configured advance % is paid)  
-8. Add technicians → schedule installation → complete with confirmation  
-9. Warranties activate on dispatch or installation per product  
-10. Open a service ticket by serial → warranty check → repair → customer confirmation → close  
-11. Review Finance and Reports (CSV/PDF)
+7. Accepting a quotation automatically creates the order and payment link when Razorpay is configured; without Razorpay, the order is still created for demo/manual payment
+8. Reserve stock → assign serials → dispatch (blocked until the configured advance % is paid)
+9. Add technicians → schedule installation → complete with confirmation
+10. Warranties activate on dispatch or installation per product
+11. Open a service ticket by serial → warranty check → repair → customer confirmation → close
+12. Review Finance and Reports (CSV/PDF)
 
 Refresh the browser or restart the server: records remain in MongoDB.
 
@@ -123,7 +124,7 @@ Refresh the browser or restart the server: records remain in MongoDB.
 
 ## Limitations
 
-- No payment gateway (manual receipts only)
+- Razorpay payment links and webhook payment updates require Razorpay test credentials; the order page also checks Razorpay automatically while payment is pending, and manual receipts remain available for demos
 - No government subsidy API
 - Photo storage needs Cloudinary credentials
 - Email sending needs valid SMTP; the app still works if SMTP is missing

@@ -3,6 +3,7 @@ import { Customer } from '../models/Customer.js';
 import { Order } from '../models/Order.js';
 import { Product } from '../models/Product.js';
 import { SerialNumber } from '../models/SerialNumber.js';
+import { Installation } from '../models/Installation.js';
 import { ApiError } from '../utils/apiError.js';
 import { paginate, escapeRegex } from '../utils/query.js';
 import { nextNumber } from '../utils/sequence.js';
@@ -40,9 +41,17 @@ export async function listWarranties({ status, q, page, limit }) {
 }
 
 async function syncCompletedOrderWarranties() {
-  const completedOrders = await Order.find({ installationStatus: 'completed' }).select('_id');
-  for (const order of completedOrders) {
-    await activateWarrantiesForOrder(order._id);
+  const [completedInstallations, completedOrders] = await Promise.all([
+    Installation.find({ status: 'completed' }).select('order'),
+    Order.find({ installationStatus: 'completed' }).select('_id'),
+  ]);
+  const orderIds = new Set([
+    ...completedInstallations.map((installation) => String(installation.order)),
+    ...completedOrders.map((order) => String(order._id)),
+  ]);
+  for (const orderId of orderIds) {
+    await Order.findByIdAndUpdate(orderId, { installationStatus: 'completed' });
+    await activateWarrantiesForOrder(orderId);
   }
 }
 
@@ -100,36 +109,33 @@ export async function activateWarrantiesForOrder(orderId, actor) {
 
 async function createMissingWarrantiesForOrder(orderId, actor) {
   const order = await Order.findById(orderId).populate('quotation');
-  if (!order?.quotation?.items?.length) return;
+  if (!order) return;
+
+  const serials = await SerialNumber.find({ order: order._id });
+  for (const serial of serials) {
+    const product = await Product.findById(serial.product);
+    if (!product || await Warranty.exists({ order: order._id, serialNumber: serial._id })) continue;
+    await Warranty.create({
+      customer: order.customer,
+      order: order._id,
+      product: product._id,
+      serialNumber: serial._id,
+      serial: serial.serial,
+      durationMonths: product.warrantyDurationMonths,
+      activationMilestone: product.warrantyActivationMilestone,
+      status: 'pending',
+      history: [{ status: 'pending', note: 'Created on installation completion', by: actor?._id }],
+    });
+  }
+
+  if (!order.quotation?.items?.length) return;
 
   for (const item of order.quotation.items) {
     if (!item.product || item.quantity <= 0) continue;
     const product = await Product.findById(item.product);
     if (!product) continue;
 
-    if (product.requiresSerialNumber) {
-      const serials = await SerialNumber.find({
-        order: order._id,
-        product: product._id,
-        status: { $in: ['dispatched', 'installed'] },
-      });
-      for (const serial of serials) {
-        const exists = await Warranty.exists({ order: order._id, serialNumber: serial._id });
-        if (exists) continue;
-        await Warranty.create({
-          customer: order.customer,
-          order: order._id,
-          product: product._id,
-          serialNumber: serial._id,
-          serial: serial.serial,
-          durationMonths: product.warrantyDurationMonths,
-          activationMilestone: product.warrantyActivationMilestone,
-          status: 'pending',
-          history: [{ status: 'pending', note: 'Created on installation completion', by: actor?._id }],
-        });
-      }
-      continue;
-    }
+    if (product.requiresSerialNumber) continue;
 
     const exists = await Warranty.exists({
       order: order._id,
