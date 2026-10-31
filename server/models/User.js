@@ -1,68 +1,46 @@
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
+
+export const USER_ROLES = ['admin', 'sales_executive', 'warehouse_manager', 'technician'];
 
 const userSchema = new mongoose.Schema(
   {
-    name: {
-      type: String,
-      required: [true, 'Name is required'],
-      trim: true,
-    },
-    email: {
-      type: String,
-      required: [true, 'Email is required'],
-      unique: true,
-      lowercase: true,
-      trim: true,
-      match: [/^\S+@\S+\.\S+$/, 'Please provide a valid email'],
-    },
-    password: {
-      type: String,
-      required: [true, 'Password is required'],
-      minlength: [6, 'Password must be at least 6 characters'],
-      select: false,
-    },
-    role: {
-      type: String,
-      enum: ['admin', 'project_manager', 'field_engineer'],
-      default: 'project_manager',
-    },
-    avatar: {
-      type: String,
-      default: '',
-    },
-    phone: {
-      type: String,
-      default: '',
-    },
-    isActive: {
-      type: Boolean,
-      default: true,
-    },
+    name: { type: String, required: true, trim: true },
+    email: { type: String, required: true, unique: true, lowercase: true, trim: true, index: true },
+    phone: { type: String, trim: true },
+    password: { type: String, required: true, select: false, minlength: 8 },
+    role: { type: String, enum: USER_ROLES, required: true },
+    isActive: { type: Boolean, default: true },
+    emailVerified: { type: Boolean, default: false },
+    emailVerificationToken: { type: String, select: false },
+    resetPasswordToken: { type: String, select: false },
+    resetPasswordExpires: { type: Date, select: false },
+    lastLoginAt: Date,
   },
-  {
-    timestamps: true,
-  }
+  { timestamps: true }
 );
 
-userSchema.pre('save', async function (next) {
-  if (!this.isModified('password')) return next();
-  const salt = await bcrypt.genSalt(10);
-  this.password = await bcrypt.hash(this.password, salt);
-  next();
+userSchema.pre('save', async function hashPassword() {
+  if (!this.isModified('password')) return;
+  this.password = await bcrypt.hash(this.password, 12);
 });
 
-userSchema.methods.comparePassword = async function (enteredPassword) {
-  return await bcrypt.compare(enteredPassword, this.password);
+userSchema.methods.comparePassword = function comparePassword(candidate) {
+  return bcrypt.compare(candidate, this.password);
 };
 
-userSchema.methods.getSignedJwtToken = function () {
-  return jwt.sign(
-    { id: this._id, role: this.role, email: this.email, name: this.name },
-    process.env.JWT_SECRET || 'heliosflow_solar_management_jwt_secret_key_2026',
-    { expiresIn: process.env.JWT_EXPIRE || '7d' }
-  );
+userSchema.methods.toSafeJSON = function toSafeJSON() {
+  return {
+    id: this._id,
+    name: this.name,
+    email: this.email,
+    phone: this.phone,
+    role: this.role,
+    isActive: this.isActive,
+    emailVerified: this.emailVerified,
+    lastLoginAt: this.lastLoginAt,
+    createdAt: this.createdAt,
+  };
 };
 
-export default mongoose.models.User || mongoose.model('User', userSchema);
+export const User = mongoose.model('User', userSchema);

@@ -2,54 +2,24 @@ import mongoose from 'mongoose';
 
 const customerSchema = new mongoose.Schema(
   {
-    name: {
-      type: String,
-      required: [true, 'Customer name is required'],
-      trim: true,
-    },
-    email: {
-      type: String,
-      required: [true, 'Email is required'],
-      lowercase: true,
-      trim: true,
-    },
-    phone: {
-      type: String,
-      required: [true, 'Phone number is required'],
-    },
-    company: {
-      type: String,
-      default: '',
-    },
+    fullName: { type: String, required: true, trim: true },
+    phone: { type: String, required: true, trim: true, index: true },
+    email: { type: String, trim: true, lowercase: true, index: true },
+    address: { type: String, required: true, trim: true },
+    city: { type: String, required: true, trim: true },
+    state: { type: String, required: true, trim: true },
+    pinCode: { type: String, required: true, trim: true },
     customerType: {
       type: String,
-      enum: ['Residential', 'Commercial', 'Industrial'],
-      default: 'Residential',
+      enum: ['residential', 'commercial', 'industrial'],
+      default: 'residential',
     },
-    address: {
-      street: { type: String, default: '' },
-      city: { type: String, required: true },
-      state: { type: String, required: true },
-      zipCode: { type: String, default: '' },
-      country: { type: String, default: 'USA' },
-    },
-    roofType: {
-      type: String,
-      enum: ['Composite Shingle', 'Tile', 'Metal Standing Seam', 'Flat TPO/EPDM', 'Ground Mount'],
-      default: 'Composite Shingle',
-    },
-    avgMonthlyPowerBill: {
-      type: Number,
-      default: 0,
-    },
-    notes: {
-      type: String,
-      default: '',
-    },
+    notes: { type: String, default: '' },
+    createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   },
-  {
-    timestamps: true,
-  }
+  { timestamps: true }
 );
 
-export default mongoose.models.Customer || mongoose.model('Customer', customerSchema);
+customerSchema.index({ fullName: 'text', phone: 'text', email: 'text' });
+
+export const Customer = mongoose.model('Customer', customerSchema);

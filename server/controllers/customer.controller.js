@@ -1,54 +1,34 @@
-import customerService from '../services/customer.service.js';
-import { sendSuccess, sendError } from '../utils/response.util.js';
+import * as svc from '../services/customer.service.js';
+import { Enquiry } from '../models/Enquiry.js';
+import { Order } from '../models/Order.js';
+import { asyncHandler } from '../utils/asyncHandler.js';
+import { ok, created } from '../utils/response.js';
 
-export const getCustomers = async (req, res, next) => {
-  try {
-    const { search } = req.query;
-    const customers = await customerService.getAllCustomers(search);
-    return sendSuccess(res, 200, 'Customers retrieved successfully', customers, {
-      total: customers.length,
-    });
-  } catch (error) {
-    next(error);
-  }
-};
+export const list = asyncHandler(async (req, res) => {
+  const data = await svc.listCustomers(req.query);
+  ok(res, data.items, 'Customers', data.meta);
+});
 
-export const getCustomerById = async (req, res, next) => {
-  try {
-    const customer = await customerService.getCustomerById(req.params.id);
-    return sendSuccess(res, 200, 'Customer retrieved successfully', customer);
-  } catch (error) {
-    next(error);
-  }
-};
+export const create = asyncHandler(async (req, res) => {
+  const customer = await svc.createCustomer(req.user, req.body, { force: req.body.force });
+  created(res, customer, 'Customer created');
+});
 
-export const createCustomer = async (req, res, next) => {
-  try {
-    const { name, email, phone } = req.body;
-    if (!name || !email || !phone) {
-      return sendError(res, 400, 'Customer name, email, and phone are required');
-    }
-    const customer = await customerService.createCustomer(req.body);
-    return sendSuccess(res, 201, 'Customer created successfully', customer);
-  } catch (error) {
-    next(error);
-  }
-};
+export const get = asyncHandler(async (req, res) => {
+  const customer = await svc.getCustomer(req.params.id);
+  const [enquiries, orders] = await Promise.all([
+    Enquiry.find({ customer: customer._id }).sort({ createdAt: -1 }),
+    Order.find({ customer: customer._id }).sort({ createdAt: -1 }),
+  ]);
+  ok(res, { customer, enquiries, orders });
+});
 
-export const updateCustomer = async (req, res, next) => {
-  try {
-    const customer = await customerService.updateCustomer(req.params.id, req.body);
-    return sendSuccess(res, 200, 'Customer updated successfully', customer);
-  } catch (error) {
-    next(error);
-  }
-};
+export const update = asyncHandler(async (req, res) => {
+  const customer = await svc.updateCustomer(req.user, req.params.id, req.body);
+  ok(res, customer, 'Customer updated');
+});
 
-export const deleteCustomer = async (req, res, next) => {
-  try {
-    const customer = await customerService.deleteCustomer(req.params.id);
-    return sendSuccess(res, 200, 'Customer deleted successfully', customer);
-  } catch (error) {
-    next(error);
-  }
-};
+export const duplicates = asyncHandler(async (req, res) => {
+  const items = await svc.findDuplicates(req.query);
+  ok(res, items);
+});

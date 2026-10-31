@@ -1,59 +1,60 @@
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import morgan from 'morgan';
-import dotenv from 'dotenv';
-
-// Routes
+import { env } from './config/env.js';
 import authRoutes from './routes/auth.routes.js';
-import projectRoutes from './routes/project.routes.js';
+import userRoutes from './routes/user.routes.js';
 import customerRoutes from './routes/customer.routes.js';
-import inventoryRoutes from './routes/inventory.routes.js';
+import enquiryRoutes from './routes/enquiry.routes.js';
 import surveyRoutes from './routes/survey.routes.js';
-import healthRoutes from './routes/health.routes.js';
-
-// Middleware
-import { errorHandler, notFound } from './middleware/error.middleware.js';
-
-dotenv.config();
+import quotationRoutes from './routes/quotation.routes.js';
+import inventoryRoutes from './routes/inventory.routes.js';
+import orderRoutes from './routes/order.routes.js';
+import paymentRoutes from './routes/payment.routes.js';
+import installationRoutes from './routes/installation.routes.js';
+import warrantyRoutes from './routes/warranty.routes.js';
+import ticketRoutes from './routes/ticket.routes.js';
+import financeRoutes from './routes/finance.routes.js';
+import { notFound, errorHandler } from './middleware/error.middleware.js';
 
 const app = express();
 
-// Enable CORS
+app.use(helmet());
+const allowedOrigins = [env.clientUrl, 'http://localhost:5173', 'http://127.0.0.1:5173'].filter(
+  (value, index, all) => value && all.indexOf(value) === index
+);
 app.use(
   cors({
-    origin: '*',
+    origin(origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+      return callback(new Error('Not allowed by CORS'));
+    },
     credentials: true,
   })
 );
-
-// Body parser
-app.use(express.json());
+app.use(express.json({ limit: '12mb' }));
 app.use(express.urlencoded({ extended: true }));
+app.use(morgan(env.nodeEnv === 'production' ? 'combined' : 'dev'));
 
-// HTTP Request Logger
-if (process.env.NODE_ENV !== 'test') {
-  app.use(morgan('dev'));
-}
-
-// API Routes
-app.use('/api/health', healthRoutes);
-app.use('/api/auth', authRoutes);
-app.use('/api/projects', projectRoutes);
-app.use('/api/customers', customerRoutes);
-app.use('/api/inventory', inventoryRoutes);
-app.use('/api/surveys', surveyRoutes);
-
-// Root greeting
-app.get('/', (req, res) => {
-  res.json({
-    name: 'HeliosFlow - Smart Solar Management API',
-    version: '1.0.0',
-    documentation: '/api/health',
-    status: 'Operational',
-  });
+app.get('/api/health', (_req, res) => {
+  res.json({ success: true, data: { status: 'ok' } });
 });
 
-// Centralized 404 & Error Handling
+app.use('/api/auth', authRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/customers', customerRoutes);
+app.use('/api/enquiries', enquiryRoutes);
+app.use('/api/surveys', surveyRoutes);
+app.use('/api/quotations', quotationRoutes);
+app.use('/api/inventory', inventoryRoutes);
+app.use('/api/orders', orderRoutes);
+app.use('/api/payments', paymentRoutes);
+app.use('/api/installations', installationRoutes);
+app.use('/api/warranties', warrantyRoutes);
+app.use('/api/tickets', ticketRoutes);
+app.use('/api/finance', financeRoutes);
+
 app.use(notFound);
 app.use(errorHandler);
 

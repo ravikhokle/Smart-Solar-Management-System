@@ -1,24 +1,12 @@
-import express from 'express';
-import {
-  getSurveys,
-  getSurveyById,
-  createSurvey,
-  updateSurvey,
-  deleteSurvey,
-} from '../controllers/survey.controller.js';
+import { Router } from 'express';
+import * as ctrl from '../controllers/survey.controller.js';
 import { protect, authorize } from '../middleware/auth.middleware.js';
+import { upload } from '../middleware/upload.middleware.js';
 
-const router = express.Router();
-
-router
-  .route('/')
-  .get(protect, getSurveys)
-  .post(protect, authorize('admin', 'project_manager', 'field_engineer'), createSurvey);
-
-router
-  .route('/:id')
-  .get(protect, getSurveyById)
-  .put(protect, authorize('admin', 'project_manager', 'field_engineer'), updateSurvey)
-  .delete(protect, authorize('admin'), deleteSurvey);
-
+const router = Router();
+router.use(protect, authorize('admin', 'sales_executive', 'technician'));
+router.get('/', ctrl.list);
+router.get('/:id', ctrl.get);
+router.patch('/:id', upload.array('photographs', 8), ctrl.update);
+router.post('/:id/decision', authorize('admin', 'sales_executive'), ctrl.decide);
 export default router;

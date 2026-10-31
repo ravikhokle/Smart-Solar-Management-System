@@ -1,83 +1,82 @@
-import User from '../models/User.js';
-import mongoose from 'mongoose';
-import { mockData } from '../utils/seedData.js';
-import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
+import { User } from '../models/User.js';
+import { env } from '../config/env.js';
+import { ApiError } from '../utils/apiError.js';
+import { signToken, hashToken, createRawToken } from '../utils/tokens.js';
+import { sendEmail } from './email.service.js';
+import { writeAudit } from './audit.service.js';
 
-class AuthService {
-  async register({ name, email, password, role, phone }) {
-    if (mongoose.connection.readyState === 1) {
-      const existing = await User.findOne({ email });
-      if (existing) {
-        throw new Error('A user with this email already exists');
-      }
-      const user = await User.create({ name, email, password, role, phone });
-      const token = user.getSignedJwtToken();
-      return { user: { id: user._id, name: user.name, email: user.email, role: user.role, phone: user.phone }, token };
-    } else {
-      // In-memory fallback
-      const existing = mockData.users.find((u) => u.email.toLowerCase() === email.toLowerCase());
-      if (existing) {
-        throw new Error('A user with this email already exists');
-      }
-      const newUser = {
-        _id: 'usr_' + Date.now(),
-        name,
-        email,
-        password,
-        role: role || 'project_manager',
-        phone: phone || '',
-        isActive: true,
-      };
-      mockData.users.push(newUser);
-      const token = jwt.sign(
-        { id: newUser._id, role: newUser.role, email: newUser.email, name: newUser.name },
-        process.env.JWT_SECRET || 'heliosflow_solar_management_jwt_secret_key_2026',
-        { expiresIn: '7d' }
-      );
-      return { user: { id: newUser._id, name: newUser.name, email: newUser.email, role: newUser.role, phone: newUser.phone }, token };
-    }
+export async function login({ email, password }) {
+  const user = await User.findOne({ email: email.toLowerCase() }).select('+password');
+  if (!user || !user.isActive) throw new ApiError(401, 'Invalid email or password');
+  const match = await user.comparePassword(password);
+  if (!match) throw new ApiError(401, 'Invalid email or password');
+  if (env.emailVerificationEnabled && !user.emailVerified) {
+    throw new ApiError(403, 'Please verify your email before signing in');
   }
-
-  async login({ email, password }) {
-    if (mongoose.connection.readyState === 1) {
-      const user = await User.findOne({ email }).select('+password');
-      if (!user) {
-        throw new Error('Invalid email or password');
-      }
-      const isMatch = await user.comparePassword(password);
-      if (!isMatch) {
-        throw new Error('Invalid email or password');
-      }
-      const token = user.getSignedJwtToken();
-      return { user: { id: user._id, name: user.name, email: user.email, role: user.role, phone: user.phone }, token };
-    } else {
-      // Fallback
-      const user = mockData.users.find((u) => u.email.toLowerCase() === email.toLowerCase());
-      if (!user || user.password !== password) {
-        throw new Error('Invalid email or password (Hint: use admin@heliosflow.com / password123)');
-      }
-      const token = jwt.sign(
-        { id: user._id, role: user.role, email: user.email, name: user.name },
-        process.env.JWT_SECRET || 'heliosflow_solar_management_jwt_secret_key_2026',
-        { expiresIn: '7d' }
-      );
-      return { user: { id: user._id, name: user.name, email: user.email, role: user.role, phone: user.phone }, token };
-    }
-  }
-
-  async getProfile(userId) {
-    if (mongoose.connection.readyState === 1) {
-      const user = await User.findById(userId);
-      if (!user) throw new Error('User not found');
-      return user;
-    }
-    const user = mockData.users.find((u) => u._id === userId || u.email === userId);
-    if (!user) {
-      return mockData.users[0]; // Default to admin
-    }
-    return user;
-  }
+  user.lastLoginAt = new Date();
+  await user.save();
+  const token = signToken(user);
+  await writeAudit({ actor: user._id, action: 'login', entityType: 'User', entityId: user._id });
+  return { token, user: user.toSafeJSON() };
 }
 
-export default new AuthService();
+export async function forgotPassword(email) {
+  const user = await User.findOne({ email: email.toLowerCase(), isActive: true });
+  if (!user) return { sent: true };
+  const raw = createRawToken();
+  user.resetPasswordToken = hashToken(raw);
+  user.resetPasswordExpires = new Date(Date.now() + 60 * 60 * 1000);
+  await user.save({ validateBeforeSave: false });
+  const url = `${env.clientUrl}/reset-password?token=${raw}`;
+  await sendEmail({
+    to: user.email,
+    subject: 'Reset your HeliosFlow password',
+    title: 'Password reset',
+    body: 'You requested a password reset. This link expires in 60 minutes. If you did not request this, you can ignore the email.',
+    ctaLabel: 'Reset password',
+    ctaUrl: url,
+  });
+  return { sent: true };
+}
+
+export async function resetPassword({ token, password }) {
+  const hashed = hashToken(token);
+  const user = await User.findOne({
+    resetPasswordToken: hashed,
+    resetPasswordExpires: { $gt: new Date() },
+  }).select('+password +resetPasswordToken +resetPasswordExpires');
+  if (!user) throw new ApiError(400, 'Reset link is invalid or has expired');
+  user.password = password;
+  user.resetPasswordToken = undefined;
+  user.resetPasswordExpires = undefined;
+  await user.save();
+  return { reset: true };
+}
+
+export async function verifyEmail(token) {
+  const hashed = hashToken(token);
+  const user = await User.findOne({ emailVerificationToken: hashed }).select('+emailVerificationToken');
+  if (!user) throw new ApiError(400, 'Verification link is invalid');
+  user.emailVerified = true;
+  user.emailVerificationToken = undefined;
+  await user.save();
+  return { verified: true };
+}
+
+export async function changePassword(userId, { currentPassword, newPassword }) {
+  const user = await User.findById(userId).select('+password');
+  if (!user) throw new ApiError(404, 'User not found');
+  const ok = await user.comparePassword(currentPassword);
+  if (!ok) throw new ApiError(400, 'Current password is incorrect');
+  user.password = newPassword;
+  await user.save();
+}
+
+export async function updateProfile(userId, data) {
+  const user = await User.findByIdAndUpdate(
+    userId,
+    { $set: { name: data.name, phone: data.phone } },
+    { new: true, runValidators: true }
+  );
+  return user.toSafeJSON();
+}

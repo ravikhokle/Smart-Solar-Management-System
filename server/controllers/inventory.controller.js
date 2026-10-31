@@ -1,54 +1,58 @@
-import inventoryService from '../services/inventory.service.js';
-import { sendSuccess, sendError } from '../utils/response.util.js';
+import * as svc from '../services/inventory.service.js';
+import { asyncHandler } from '../utils/asyncHandler.js';
+import { ok, created } from '../utils/response.js';
 
-export const getInventory = async (req, res, next) => {
-  try {
-    const { category, search } = req.query;
-    const items = await inventoryService.getAllInventory(category, search);
-    return sendSuccess(res, 200, 'Inventory items retrieved successfully', items, {
-      total: items.length,
-    });
-  } catch (error) {
-    next(error);
-  }
-};
+export const list = asyncHandler(async (req, res) => {
+  const data = await svc.listProducts(req.query);
+  ok(res, data.items, 'Products', data.meta);
+});
 
-export const getLowStock = async (req, res, next) => {
-  try {
-    const items = await inventoryService.getLowStockAlerts();
-    return sendSuccess(res, 200, 'Low stock alerts retrieved', items);
-  } catch (error) {
-    next(error);
-  }
-};
+export const get = asyncHandler(async (req, res) => {
+  ok(res, await svc.getProduct(req.params.id));
+});
 
-export const createItem = async (req, res, next) => {
-  try {
-    const { name, sku, category, unitCost, unitPrice } = req.body;
-    if (!name || !sku || !category || unitCost === undefined || unitPrice === undefined) {
-      return sendError(res, 400, 'Name, SKU, category, unit cost and price are required');
-    }
-    const item = await inventoryService.createItem(req.body);
-    return sendSuccess(res, 201, 'Inventory item created successfully', item);
-  } catch (error) {
-    next(error);
-  }
-};
+export const create = asyncHandler(async (req, res) => {
+  created(res, await svc.createProduct(req.user, req.body), 'Product created');
+});
 
-export const updateItem = async (req, res, next) => {
-  try {
-    const item = await inventoryService.updateItem(req.params.id, req.body);
-    return sendSuccess(res, 200, 'Inventory item updated successfully', item);
-  } catch (error) {
-    next(error);
-  }
-};
+export const update = asyncHandler(async (req, res) => {
+  ok(res, await svc.updateProduct(req.user, req.params.id, req.body), 'Product updated');
+});
 
-export const deleteItem = async (req, res, next) => {
-  try {
-    const item = await inventoryService.deleteItem(req.params.id);
-    return sendSuccess(res, 200, 'Inventory item deleted successfully', item);
-  } catch (error) {
-    next(error);
-  }
-};
+export const categories = asyncHandler(async (req, res) => {
+  ok(res, await svc.listCategories());
+});
+
+export const createCategory = asyncHandler(async (req, res) => {
+  created(res, await svc.createCategory(req.body), 'Category created');
+});
+
+export const receive = asyncHandler(async (req, res) => {
+  ok(res, await svc.receiveStock(req.user, req.body), 'Stock received');
+});
+
+export const reserve = asyncHandler(async (req, res) => {
+  ok(res, await svc.reserveOrder(req.user, req.params.orderId), 'Stock reserved');
+});
+
+export const dispatch = asyncHandler(async (req, res) => {
+  ok(res, await svc.dispatchOrder(req.user, req.params.orderId, req.body.serialAssignments || []), 'Dispatched');
+});
+
+export const serials = asyncHandler(async (req, res) => {
+  const data = await svc.listSerials(req.query);
+  ok(res, data.items, 'Serial numbers', data.meta);
+});
+
+export const lookup = asyncHandler(async (req, res) => {
+  ok(res, await svc.lookupSerial(req.params.serial));
+});
+
+export const movements = asyncHandler(async (req, res) => {
+  const data = await svc.listMovements(req.query);
+  ok(res, data.items, 'Movements', data.meta);
+});
+
+export const low = asyncHandler(async (req, res) => {
+  ok(res, await svc.lowStock());
+});

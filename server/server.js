@@ -1,29 +1,24 @@
+import { env } from './config/env.js';
+import { connectDb } from './config/db.js';
 import app from './app.js';
-import { connectDB } from './config/db.js';
-import { seedDatabase } from './utils/seedData.js';
 
-const PORT = process.env.PORT || 5000;
-
-const startServer = async () => {
-  // Connect to Database (gracefully handles local/Atlas connection)
-  const conn = await connectDB();
-  if (conn) {
-    await seedDatabase();
+async function start() {
+  try {
+    await connectDb();
+    app.listen(env.port, () => {
+      console.log(`HeliosFlow API listening on port ${env.port}`);
+    });
+  } catch (err) {
+    const message = err.message || 'Unknown error';
+    if (/bad auth|authentication failed/i.test(message)) {
+      console.error(
+        'Failed to start server: MongoDB authentication failed. Check MONGODB_URI (or MONGO_URI) in server/.env, including username, password, and Atlas database user.'
+      );
+    } else {
+      console.error('Failed to start server:', message);
+    }
+    process.exit(1);
   }
+}
 
-  const server = app.listen(PORT, () => {
-    console.log(`====================================================`);
-    console.log(` HeliosFlow Solar Management Server running on port ${PORT}`);
-    console.log(` Environment : ${process.env.NODE_ENV || 'development'}`);
-    console.log(` Health Check: http://localhost:${PORT}/api/health`);
-    console.log(`====================================================`);
-  });
-
-  // Handle unhandled promise rejections
-  process.on('unhandledRejection', (err) => {
-    console.error(`[UnhandledRejection Error]: ${err.message}`);
-    // server.close(() => process.exit(1));
-  });
-};
-
-startServer();
+start();

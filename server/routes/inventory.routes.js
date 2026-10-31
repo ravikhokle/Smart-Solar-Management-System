@@ -1,25 +1,20 @@
-import express from 'express';
-import {
-  getInventory,
-  getLowStock,
-  createItem,
-  updateItem,
-  deleteItem,
-} from '../controllers/inventory.controller.js';
+import { Router } from 'express';
+import * as ctrl from '../controllers/inventory.controller.js';
 import { protect, authorize } from '../middleware/auth.middleware.js';
 
-const router = express.Router();
-
-router.get('/alerts/low-stock', protect, getLowStock);
-
-router
-  .route('/')
-  .get(protect, getInventory)
-  .post(protect, authorize('admin', 'project_manager'), createItem);
-
-router
-  .route('/:id')
-  .put(protect, authorize('admin', 'project_manager'), updateItem)
-  .delete(protect, authorize('admin'), deleteItem);
-
+const router = Router();
+router.use(protect);
+router.get('/products', authorize('admin', 'warehouse_manager', 'sales_executive'), ctrl.list);
+router.post('/products', authorize('admin', 'warehouse_manager'), ctrl.create);
+router.get('/products/:id', authorize('admin', 'warehouse_manager', 'sales_executive'), ctrl.get);
+router.patch('/products/:id', authorize('admin', 'warehouse_manager'), ctrl.update);
+router.get('/categories', authorize('admin', 'warehouse_manager', 'sales_executive'), ctrl.categories);
+router.post('/categories', authorize('admin', 'warehouse_manager'), ctrl.createCategory);
+router.post('/receive', authorize('admin', 'warehouse_manager'), ctrl.receive);
+router.post('/orders/:orderId/reserve', authorize('admin', 'warehouse_manager'), ctrl.reserve);
+router.post('/orders/:orderId/dispatch', authorize('admin', 'warehouse_manager'), ctrl.dispatch);
+router.get('/serials', authorize('admin', 'warehouse_manager', 'technician'), ctrl.serials);
+router.get('/serials/lookup/:serial', authorize('admin', 'warehouse_manager', 'technician', 'sales_executive'), ctrl.lookup);
+router.get('/movements', authorize('admin', 'warehouse_manager'), ctrl.movements);
+router.get('/low-stock', authorize('admin', 'warehouse_manager'), ctrl.low);
 export default router;

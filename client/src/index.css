@@ -1,0 +1,39 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body,
+  #root {
+    min-height: 100%;
+  }
+  body {
+    background: #f7f3e9;
+    color: #29343a;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-primary {
+    @apply btn bg-solar-orange text-white hover:bg-solar-hover;
+  }
+  .btn-secondary {
+    @apply btn border border-solar-border bg-white text-solar-charcoal hover:bg-solar-grey;
+  }
+  .btn-danger {
+    @apply btn bg-solar-error text-white hover:opacity-90;
+  }
+  .input {
+    @apply w-full rounded-lg border border-solar-border bg-white px-3 py-2 text-sm text-solar-charcoal outline-none focus:border-solar-orange;
+  }
+  .label {
+    @apply mb-1 block text-xs font-medium uppercase tracking-wide text-solar-muted;
+  }
+  .card {
+    @apply rounded-xl border border-solar-border bg-white shadow-card;
+  }
+}

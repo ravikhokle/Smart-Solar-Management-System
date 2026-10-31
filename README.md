@@ -1,171 +1,140 @@
-# HeliosFlow - Smart Solar Management System (Core MVP)
+# HeliosFlow — Solar Installation Management System
 
-A professional enterprise B2B SaaS platform for orchestrating commercial and residential solar installations, site surveys, engineering permits, hardware inventory, and power generation performance.
+Production-oriented MVP for a rooftop solar company. The app manages the full workflow from enquiry to survey, quotation, payment, inventory, installation, warranty, service tickets, and financial reporting.
 
----
+There is **no demo data, seed script, public registration, or default login**. The database starts empty except for the first administrator created with the secure CLI command.
 
-## ☀️ Architecture & Tech Stack
+## Tech stack
 
-### Frontend
-- **Framework:** React 18 with Vite
-- **Styling:** Tailwind CSS (custom curated solar B2B design system)
-- **Routing:** React Router DOM (v7)
-- **State Management:** Redux Toolkit & React-Redux
-- **API Client:** Axios (with Bearer JWT interceptors)
-- **Icons:** Lucide React
-- **Data Visualization:** Recharts (Power generation vs benchmark area charts)
+- **Frontend:** React 18, Vite, JavaScript (JSX), Tailwind CSS, React Router, Axios, Redux Toolkit, Lucide React, Recharts, React Hook Form
+- **Backend:** Node.js, Express, MongoDB Atlas, Mongoose (MVC), JWT, bcryptjs, Nodemailer, Multer, Cloudinary, PDFKit, QR codes, Zod
 
-### Backend
-- **Runtime:** Node.js & Express.js
-- **Architecture:** MVC (Model - View/Response - Controller) with separated Service layer
-- **Database:** MongoDB Atlas via Mongoose (with automated fallback store for local development)
-- **Authentication:** JWT (JSON Web Tokens) with `bcryptjs` password hashing
-- **Security & Logging:** CORS, Morgan logger, centralized error handling middleware
-
----
-
-## 🎨 Design System
-
-Tailwind CSS has been configured with the brand color palette:
-
-| Token | Hex | Role |
-| :--- | :--- | :--- |
-| **Primary** | `#123B35` | Deep Forest/Teal brand color, navigation header, brand cards |
-| **Secondary** | `#16A36A` | Eco emerald accent, primary action buttons, active tabs |
-| **Accent** | `#F4B740` | Warm solar gold, highlight badges, generation forecast |
-| **Background** | `#F7F9F8` | Clean off-white canvas |
-| **Surface** | `#FFFFFF` | Crisp card containers and modals |
-| **Text** | `#1F2937` | High-contrast charcoal slate typography |
-| **Border** | `#E5E7EB` | Subtle structural dividers |
-| **Information** | `#2563EB` | Status pills, technical specs, alerts |
-| **Warning** | `#DC6B35` | Procurement warnings, urgent priorities |
-
-**Typography:** Google Inter with system sans-serif fallback.
-
----
-
-## 📁 Repository Structure
+## Repository layout
 
 ```
-Smart-Solar-Management-System/
-├── package.json               # Unified dependencies and scripts
-├── vite.config.js             # Vite configuration with /api reverse proxy
-├── tailwind.config.js         # Design system tokens and brand colors
-├── postcss.config.js          # Tailwind & Autoprefixer PostCSS config
-├── index.html                 # App HTML with Inter typography & SEO metadata
-├── .env.example               # Environment variables template
-├── .env                       # Local environment variables
-│
-├── src/                       # Frontend Application
-│   ├── assets/                # Static assets & icons
-│   ├── components/
-│   │   ├── common/            # Button, Badge, Card, Input, Select, Modal, Table, Skeleton, EmptyState
-│   │   ├── navigation/        # Collapsible Sidebar & TopNavbar
-│   │   ├── dashboard/         # StatCard, GenerationChart, PipelineFunnel
-│   │   └── forms/             # ProjectForm, SurveyForm, CustomerForm, InventoryForm
-│   ├── layouts/               # DashboardLayout & AuthLayout
-│   ├── features/              # Redux slices (authSlice, projectSlice)
-│   ├── pages/                 # DashboardPage, ProjectsPage, ProjectDetailsPage, SurveysPage, InventoryPage, CustomersPage, LoginPage, NotFoundPage
-│   ├── services/              # Axios API clients (auth, project, customer, inventory, survey)
-│   ├── store/                 # Redux Toolkit store setup
-│   ├── routes/                # ProtectedRoute & AppRoutes
-│   ├── utils/                 # Formatters & Constants
-│   ├── App.jsx
-│   └── main.jsx
-│
-└── server/                    # Backend Application (MVC Architecture)
-    ├── config/                # Database connection (db.js)
-    ├── controllers/           # auth, project, customer, inventory, survey controllers
-    ├── models/                # User, Project, Customer, Inventory, Survey Mongoose models
-    ├── routes/                # Express API routes
-    ├── middleware/            # JWT auth, RBAC authorization, centralized errorHandler
-    ├── services/              # Business logic services
-    ├── validators/            # Auth and project input validators
-    ├── utils/                 # Standard JSON response helper & initial seed data
-    ├── jobs/                  # Background solar report jobs
-    ├── app.js                 # Express app configuration
-    └── server.js              # Server entry point & listener
+client/     React SPA (feature-based)
+server/     Express API (models, controllers, routes, services, middleware)
 ```
 
----
+## 1. MongoDB Atlas
 
-## 🚀 How to Run the Application
+1. Create a cluster and a database user.
+2. Allow your IP (or `0.0.0.0/0` for development only).
+3. Copy the connection string into `server/.env` as `MONGODB_URI`.
+4. The API uses database name `solar_management` unless you set `MONGODB_DB`.
+5. If the API exits with MongoDB authentication failed, reset the database user password in Atlas and update `MONGODB_URI`. Do not commit the URI.
 
-### 1. Prerequisites
-- **Node.js** v18+ (tested on Node v22)
-- **npm** v9+
+## 2. Environment variables
 
-### 2. Environment Setup
-The `.env` file is already created in the project root with defaults:
-```env
+Copy `server/.env.example` to `server/.env` and fill in real values. Never commit `server/.env`.
+
+```
+MONGODB_URI=
+JWT_SECRET=
+JWT_EXPIRES_IN=7d
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=
+SMTP_PASS=
+SMTP_FROM=
+CLIENT_URL=http://localhost:5173
+SERVER_URL=http://localhost:5000
+CLOUDINARY_CLOUD_NAME=
+CLOUDINARY_API_KEY=
+CLOUDINARY_API_SECRET=
 PORT=5000
 NODE_ENV=development
-MONGO_URI=mongodb://127.0.0.1:27017/solar_management
-JWT_SECRET=heliosflow_solar_management_jwt_secret_key_2026
-JWT_EXPIRE=7d
-VITE_API_URL=/api
+EMAIL_VERIFICATION_ENABLED=false
+MONGODB_DB=solar_management
 ```
-*(Note: If you have a MongoDB Atlas connection string, you can simply paste it into `MONGO_URI`. If not, the server will automatically fall back to its internal mock store so you can test all features immediately without any database setup!)*
 
-### 3. Running the Server and Client
+Compatible aliases if you already use them: `MONGO_URI`, `JWT_EXPIRE`, `SMTPEMAIL`, `SMTPPASS`.
 
-You can run both concurrently or in separate terminals:
+SMTP failures are logged and **do not roll back** the related database write.
 
-#### Option A: Run Both Together (Recommended)
+Photo uploads require Cloudinary. If those variables are empty, survey/installation photo upload returns a clear configuration error.
+
+## 3. Install
+
 ```bash
-npm run dev:all
+npm install
+cd server && npm install
+cd ../client && npm install
 ```
 
-#### Option B: Run in Separate Terminals
+## 4. Create the first administrator
 
-**Terminal 1 (Backend Server):**
+From the project root, with MongoDB configured:
+
 ```bash
-npm run server
+npm run create-admin
 ```
-Server runs at `http://localhost:5000` (Health check: `http://localhost:5000/api/health`).
 
-**Terminal 2 (Frontend Client):**
+You will be prompted for name, email and password. If an admin already exists, the command exits without creating another account.
+
+## 5. Run locally
+
 ```bash
 npm run dev
 ```
-Client runs at `http://localhost:5173`.
 
----
+- API: `http://localhost:5000/api/health`
+- App: `http://localhost:5173`
 
-## 🔑 Default Credentials
+Sign in with the administrator you created. Create staff accounts from **Users** (admin only).
 
-For quick testing, the login screen includes **one-click demo buttons** or you can log in with:
+## 6. End-to-end workflow
 
-| Role | Email | Password |
-| :--- | :--- | :--- |
-| **Admin** | `admin@heliosflow.com` | `password123` |
-| **Project Manager** | `marcus@heliosflow.com` | `password123` |
-| **Field Engineer** | `engineer@heliosflow.com` | `password123` |
+1. Create admin → sign in  
+2. Customers → Enquiries → Convert to site survey  
+3. Complete survey → Submit → Approve  
+4. Generate quotation (BOM) → Accept → Convert to order  
+5. Record advance payment  
+6. Add products, receive stock (serials + QR)  
+7. Reserve stock → assign serials → dispatch (blocked until the configured advance % is paid)  
+8. Add technicians → schedule installation → complete with confirmation  
+9. Warranties activate on dispatch or installation per product  
+10. Open a service ticket by serial → warranty check → repair → customer confirmation → close  
+11. Review Finance and Reports (CSV/PDF)
 
----
+Refresh the browser or restart the server: records remain in MongoDB.
 
-## 📋 API Endpoints Summary
+## Deployment
 
-- **Authentication:**
-  - `POST /api/auth/register` - Create account
-  - `POST /api/auth/login` - Sign in & receive JWT
-  - `GET /api/auth/me` - Profile of logged-in user
-- **Projects:**
-  - `GET /api/projects` - List all projects (supports `?status=...&priority=...&search=...`)
-  - `GET /api/projects/metrics` - Dashboard telemetry & generation data
-  - `GET /api/projects/:id` - Project details & milestones
-  - `POST /api/projects` - Create new solar installation
-  - `PUT /api/projects/:id` - Update status/milestones
-  - `DELETE /api/projects/:id` - Delete project (Admin only)
-- **Surveys:**
-  - `GET /api/surveys` - List site audits
-  - `POST /api/surveys` - Schedule roof & electrical assessment
-- **Inventory:**
-  - `GET /api/inventory` - Equipment catalog
-  - `GET /api/inventory/alerts/low-stock` - Low stock reorder triggers
-  - `POST /api/inventory` - Add equipment
-- **Customers:**
-  - `GET /api/customers` - Client directory
-  - `POST /api/customers` - Add new client
-- **Health:**
-  - `GET /api/health` - Database & server uptime health monitor
+- Set `NODE_ENV=production`, a strong `JWT_SECRET`, Atlas IP allowlist, and `CLIENT_URL` / `SERVER_URL` to the real origins.
+- Build the client with `npm run build --prefix client` and serve `client/dist` behind the API or a static host.
+- Keep CORS origin equal to `CLIENT_URL`.
+- Configure Cloudinary and SMTP on the host. Do not put secrets in frontend env vars.
+
+## Completed features
+
+- JWT auth, roles (admin, sales executive, warehouse manager, technician), forgot/reset password, optional email verification
+- Profile, password change, user activation
+- Customers (duplicate protection), enquiries, site surveys with photos and approval
+- Quotations with BOM, templates API, PDF, accept/reject, convert to order
+- Products, categories, stock receive/reserve/dispatch with transactions, serials, QR generate/scan, low-stock
+- Orders, manual payments, receipts, payment gate before dispatch
+- Technicians, installation schedule, photos, signature, PDF report
+- Product-specific warranties and certificates
+- Service tickets with warranty coverage and close-after-confirmation
+- Expenses, subsidies (manual), director report CSV/PDF
+- Dashboard KPIs and charts from live aggregations
+- Audit logs, Helmet, CORS, auth rate limit, Zod validation
+
+## Limitations
+
+- No payment gateway (manual receipts only)
+- No government subsidy API
+- Photo storage needs Cloudinary credentials
+- Email sending needs valid SMTP; the app still works if SMTP is missing
+- Warranty month length uses a 30-day month approximation
+- Camera QR scan needs HTTPS or localhost permission
+
+## Scripts
+
+| Command | Purpose |
+| --- | --- |
+| `npm run dev` | API + Vite together |
+| `npm run create-admin` | One-time first administrator |
+| `npm run build` | Production client build |
+| `npm start` | API only |

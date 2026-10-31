@@ -1,83 +1,71 @@
-import Customer from '../models/Customer.js';
-import mongoose from 'mongoose';
-import { mockData } from '../utils/seedData.js';
+import { Customer } from '../models/Customer.js';
+import { ApiError } from '../utils/apiError.js';
+import { paginate, searchFilter } from '../utils/query.js';
+import { writeAudit } from './audit.service.js';
 
-class CustomerService {
-  async getAllCustomers(search = '') {
-    if (mongoose.connection.readyState === 1) {
-      let query = {};
-      if (search) {
-        query.$or = [
-          { name: { $regex: search, $options: 'i' } },
-          { email: { $regex: search, $options: 'i' } },
-          { company: { $regex: search, $options: 'i' } },
-        ];
-      }
-      return await Customer.find(query).sort({ createdAt: -1 });
-    } else {
-      let results = [...mockData.customers];
-      if (search) {
-        const s = search.toLowerCase();
-        results = results.filter(
-          (c) =>
-            c.name.toLowerCase().includes(s) ||
-            c.email.toLowerCase().includes(s) ||
-            (c.company && c.company.toLowerCase().includes(s))
-        );
-      }
-      return results;
-    }
-  }
-
-  async getCustomerById(id) {
-    if (mongoose.connection.readyState === 1) {
-      const customer = await Customer.findById(id);
-      if (!customer) throw new Error(`Customer with ID ${id} not found`);
-      return customer;
-    }
-    const customer = mockData.customers.find((c) => c._id === id);
-    if (!customer) throw new Error(`Customer with ID ${id} not found`);
-    return customer;
-  }
-
-  async createCustomer(data) {
-    if (mongoose.connection.readyState === 1) {
-      return await Customer.create(data);
-    } else {
-      const customer = {
-        _id: 'cust_' + Date.now(),
-        ...data,
-        createdAt: new Date().toISOString(),
-      };
-      mockData.customers.unshift(customer);
-      return customer;
-    }
-  }
-
-  async updateCustomer(id, data) {
-    if (mongoose.connection.readyState === 1) {
-      const customer = await Customer.findByIdAndUpdate(id, data, { new: true, runValidators: true });
-      if (!customer) throw new Error(`Customer with ID ${id} not found`);
-      return customer;
-    } else {
-      const idx = mockData.customers.findIndex((c) => c._id === id);
-      if (idx === -1) throw new Error(`Customer with ID ${id} not found`);
-      mockData.customers[idx] = { ...mockData.customers[idx], ...data };
-      return mockData.customers[idx];
-    }
-  }
-
-  async deleteCustomer(id) {
-    if (mongoose.connection.readyState === 1) {
-      const customer = await Customer.findByIdAndDelete(id);
-      if (!customer) throw new Error(`Customer with ID ${id} not found`);
-      return customer;
-    } else {
-      const idx = mockData.customers.findIndex((c) => c._id === id);
-      if (idx === -1) throw new Error(`Customer with ID ${id} not found`);
-      return mockData.customers.splice(idx, 1)[0];
-    }
-  }
+export async function listCustomers({ q, page, limit, city, customerType }) {
+  const { skip, limit: l, page: p } = paginate({ page, limit });
+  const filter = { ...searchFilter(q, ['fullName', 'phone', 'email']) };
+  if (city) filter.city = new RegExp(city, 'i');
+  if (customerType) filter.customerType = customerType;
+  const [items, total] = await Promise.all([
+    Customer.find(filter).sort({ createdAt: -1 }).skip(skip).limit(l),
+    Customer.countDocuments(filter),
+  ]);
+  return { items, meta: { page: p, limit: l, total } };
 }
 
-export default new CustomerService();
+export async function findDuplicates({ phone, email, excludeId }) {
+  const clauses = [];
+  if (phone) clauses.push({ phone: phone.trim() });
+  if (email) clauses.push({ email: email.toLowerCase().trim() });
+  if (!clauses.length) return [];
+  const filter = { $or: clauses };
+  if (excludeId) filter._id = { $ne: excludeId };
+  return Customer.find(filter).limit(5);
+}
+
+export async function createCustomer(actor, payload, { force } = {}) {
+  if (!force) {
+    const dupes = await findDuplicates({ phone: payload.phone, email: payload.email });
+    if (dupes.length) {
+      throw new ApiError(409, 'A customer with this phone or email already exists', [
+        { code: 'duplicate', customers: dupes },
+      ]);
+    }
+  }
+  const customer = await Customer.create({ ...payload, createdBy: actor._id });
+  await writeAudit({
+    actor: actor._id,
+    action: 'customer.create',
+    entityType: 'Customer',
+    entityId: customer._id,
+  });
+  return customer;
+}
+
+export async function getCustomer(id) {
+  const customer = await Customer.findById(id);
+  if (!customer) throw new ApiError(404, 'Customer not found');
+  return customer;
+}
+
+export async function updateCustomer(actor, id, payload) {
+  if (payload.phone || payload.email) {
+    const dupes = await findDuplicates({
+      phone: payload.phone,
+      email: payload.email,
+      excludeId: id,
+    });
+    if (dupes.length) throw new ApiError(409, 'Another customer already uses this phone or email');
+  }
+  const customer = await Customer.findByIdAndUpdate(id, payload, { new: true, runValidators: true });
+  if (!customer) throw new ApiError(404, 'Customer not found');
+  await writeAudit({
+    actor: actor._id,
+    action: 'customer.update',
+    entityType: 'Customer',
+    entityId: customer._id,
+  });
+  return customer;
+}
