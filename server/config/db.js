@@ -9,6 +9,14 @@ export async function connectDb() {
       authSource: 'admin',
       serverSelectionTimeoutMS: 15000,
     });
+
+    // Ensure database indexes (including unique constraints) are synced
+    try {
+      const { Customer } = await import('../models/Customer.js');
+      await Customer.syncIndexes();
+    } catch (idxErr) {
+      console.warn('Index sync notice:', idxErr.message);
+    }
   } catch (error) {
     if (error?.code === 8000 || error?.message?.includes('Authentication failed')) {
       throw new Error(

@@ -18,6 +18,7 @@ import warrantyRoutes from './routes/warranty.routes.js';
 import ticketRoutes from './routes/ticket.routes.js';
 import financeRoutes from './routes/finance.routes.js';
 import razorpayRoutes from './routes/razorpay.routes.js';
+import voiceAssistantRoutes from './routes/voiceAssistant.routes.js';
 import { notFound, errorHandler } from './middleware/error.middleware.js';
 
 const app = express();
@@ -58,6 +59,7 @@ app.use('/api/installations', installationRoutes);
 app.use('/api/warranties', warrantyRoutes);
 app.use('/api/tickets', ticketRoutes);
 app.use('/api/finance', financeRoutes);
+app.use('/api/voice-assistant', voiceAssistantRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

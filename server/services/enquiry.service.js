@@ -13,10 +13,11 @@ const populate = [
   { path: 'createdBy', select: 'name' },
 ];
 
-export async function listEnquiries({ q, status, from, to, page, limit, assignedTo }) {
+export async function listEnquiries({ q, status, source, from, to, page, limit, assignedTo }) {
   const { skip, limit: l, page: p } = paginate({ page, limit });
   const filter = {};
   if (status) filter.status = status;
+  if (source) filter.source = source;
   if (assignedTo) filter.assignedTo = assignedTo;
   if (from || to) {
     filter.enquiryDate = {};

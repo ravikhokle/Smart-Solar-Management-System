@@ -10,6 +10,7 @@ import { Warranty } from '../models/Warranty.js';
 import { ServiceTicket } from '../models/ServiceTicket.js';
 import { SubsidyApplication } from '../models/SubsidyApplication.js';
 import { Technician } from '../models/Technician.js';
+import { VoiceConversation } from '../models/VoiceConversation.js';
 import { getSettings } from '../models/Setting.js';
 import { paginate } from '../utils/query.js';
 import { lowStock } from './inventory.service.js';
@@ -106,6 +107,10 @@ export async function dashboard(actor) {
     pendingPaymentOrders,
     recentTickets,
     low,
+    aiVoiceEnquiries,
+    totalVoiceConversations,
+    submittedVoiceEnquiries,
+    failedVoiceSubmissions,
   ] = await Promise.all([
     Customer.countDocuments(),
     Enquiry.countDocuments(),
@@ -133,6 +138,10 @@ export async function dashboard(actor) {
       .limit(6),
     ServiceTicket.find().populate('customer', 'fullName').sort({ createdAt: -1 }).limit(6),
     lowStock(),
+    Enquiry.countDocuments({ source: 'ai_voice_assistant' }),
+    VoiceConversation.countDocuments(),
+    VoiceConversation.countDocuments({ submissionStatus: 'success' }),
+    VoiceConversation.countDocuments({ submissionStatus: 'failed' }),
   ]);
 
   const revenue = payments[0]?.total || 0;
@@ -180,6 +189,10 @@ export async function dashboard(actor) {
     kpis: {
       totalCustomers,
       totalEnquiries,
+      aiVoiceEnquiries,
+      totalVoiceConversations,
+      submittedVoiceEnquiries,
+      failedVoiceSubmissions,
       pendingSiteSurveys: pendingSurveys,
       approvedQuotations,
       activeOrders,

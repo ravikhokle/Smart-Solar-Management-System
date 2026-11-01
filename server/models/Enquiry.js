@@ -10,6 +10,16 @@ export const ENQUIRY_STATUSES = [
   'closed',
 ];
 
+export const ENQUIRY_SOURCES = [
+  'website',
+  'referral',
+  'walk_in',
+  'phone',
+  'campaign',
+  'ai_voice_assistant',
+  'other',
+];
+
 const enquirySchema = new mongoose.Schema(
   {
     customer: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer', required: true },
@@ -18,13 +28,14 @@ const enquirySchema = new mongoose.Schema(
     electricityConsumption: { type: String, default: '' },
     source: {
       type: String,
-      enum: ['website', 'referral', 'walk_in', 'phone', 'campaign', 'other'],
+      enum: ENQUIRY_SOURCES,
       default: 'other',
     },
     enquiryDate: { type: Date, default: Date.now },
     assignedTo: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     status: { type: String, enum: ENQUIRY_STATUSES, default: 'new', index: true },
     notes: { type: String, default: '' },
+    conversationId: { type: String, index: true },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   },
   { timestamps: true }

@@ -49,6 +49,13 @@ export function loadEnv() {
     },
     clientUrl: process.env.CLIENT_URL || 'http://localhost:5173',
     serverUrl: process.env.SERVER_URL || `http://localhost:${process.env.PORT || 5000}`,
+    elevenLabs: {
+      apiKey: process.env.ELEVENLABS_API_KEY || '',
+      agentId: process.env.ELEVENLABS_AGENT_ID || '',
+      webhookSecret: process.env.ELEVENLABS_WEBHOOK_SECRET || '',
+      assistantSecret: process.env.VOICE_ASSISTANT_SECRET || process.env.ELEVENLABS_WEBHOOK_SECRET || '',
+    },
+    storeVoiceTranscripts: String(process.env.STORE_VOICE_TRANSCRIPTS || 'false').toLowerCase() === 'true',
     razorpay: {
       keyId: process.env.RAZORPAY_KEY_ID || '',
       keySecret: process.env.RAZORPAY_KEY_SECRET || '',
